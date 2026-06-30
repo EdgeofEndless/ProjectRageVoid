@@ -1,12 +1,18 @@
 --[[
-    HvH ARENA v8.1 - FULLY FIXED DROPDOWN + ALL FEATURES
+    HvH ARENA v8.3 - FULLY WORKING DROPDOWN WITH ALL PLAYERS
     Key: UEONTOP
 ]]
 
--- Variables (from universal script)
-local player = game.Players.LocalPlayer
+-- SERVICES
+local PlayersService = game:GetService("Players")
+local LocalPlayer = PlayersService.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+
+-- Variables
+local player = LocalPlayer
 local mouse = player:GetMouse()
-local lockOnRange = 50
 local camera = workspace.CurrentCamera
 local isLockedOn = false
 
@@ -31,7 +37,6 @@ local isInvisible = false
 local isFlying = false
 local flySpeed = 50
 local bodyVelocity = nil
-local userInputService = game:GetService("UserInputService")
 
 -- NoClip
 local isNoClip = false
@@ -69,12 +74,9 @@ local currentTab = "Main"
 local keyGui = nil
 
 -- Dropdown references
-local teleportDropdownBtn = nil
-local teleportDropdownList = nil
-local killDropdownBtn = nil
-local killDropdownList = nil
 local rageTargetBtn = nil
 local rageTargetList = nil
+local rageRebuildFunc = nil
 
 -- ============================================================
 -- HELPERS
@@ -94,7 +96,7 @@ end
 
 local function getPlayers()
     local list = {}
-    for _, p in pairs(game.Players:GetPlayers()) do
+    for _, p in pairs(PlayersService:GetPlayers()) do
         if p ~= player and isPlayerAlive(p.Character) then
             table.insert(list, p)
         end
@@ -104,7 +106,7 @@ end
 
 local function getAllPlayerNames()
     local names = {"Select Player"}
-    for _, p in pairs(game.Players:GetPlayers()) do
+    for _, p in pairs(PlayersService:GetPlayers()) do
         if p ~= player then
             table.insert(names, p.Name)
         end
@@ -115,7 +117,7 @@ end
 local function clamp(v, low, high) return math.min(high, math.max(low, v)) end
 
 -- ============================================================
--- ESP (from universal script)
+-- ESP
 -- ============================================================
 local function createESP(otherPlayer)
     if not otherPlayer.Character then return end
@@ -198,14 +200,14 @@ local function updateESP()
 end
 
 -- ============================================================
--- AIMBOT (from universal script)
+-- AIMBOT
 -- ============================================================
 local function findNearestPlayerHead()
     local nearestPlayer = nil
     local nearestAngle = aimFOV
     local center = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
 
-    for _, otherPlayer in pairs(game.Players:GetPlayers()) do
+    for _, otherPlayer in pairs(PlayersService:GetPlayers()) do
         if otherPlayer ~= player and otherPlayer.Character then
             local head = otherPlayer.Character:FindFirstChild("Head")
             if head and isPlayerAlive(otherPlayer.Character) then
@@ -239,7 +241,7 @@ local function lockOntoNearestPlayer()
 end
 
 -- ============================================================
--- FLIGHT (from universal script)
+-- FLIGHT
 -- ============================================================
 local function handleFlying()
     if isFlying then
@@ -252,22 +254,22 @@ local function handleFlying()
             end
             
             local direction = Vector3.new(0, 0, 0)
-            if userInputService:IsKeyDown(Enum.KeyCode.W) then
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then
                 direction = direction + camera.CFrame.LookVector
             end
-            if userInputService:IsKeyDown(Enum.KeyCode.S) then
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then
                 direction = direction - camera.CFrame.LookVector
             end
-            if userInputService:IsKeyDown(Enum.KeyCode.A) then
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then
                 direction = direction - camera.CFrame.RightVector
             end
-            if userInputService:IsKeyDown(Enum.KeyCode.D) then
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then
                 direction = direction + camera.CFrame.RightVector
             end
-            if userInputService:IsKeyDown(Enum.KeyCode.Space) then
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
                 direction = direction + Vector3.new(0, 1, 0)
             end
-            if userInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
                 direction = direction - Vector3.new(0, 1, 0)
             end
             
@@ -301,7 +303,7 @@ local function startRageTeleport()
     rageOriginalPos = rootPart.Position
     local toggle = false
     
-    rageTimer = game:GetService("RunService").Heartbeat:Connect(function()
+    rageTimer = RunService.Heartbeat:Connect(function()
         if not rageTeleportEnabled or not rageTarget or not rageTarget.Character then
             rageTimer:Disconnect()
             rageTimer = nil
@@ -324,7 +326,7 @@ local function startRageTeleport()
 end
 
 -- ============================================================
--- UI CREATION (using universal script style)
+-- UI CREATION
 -- ============================================================
 local function createMainUI()
     screenGui = Instance.new("ScreenGui")
@@ -353,7 +355,7 @@ local function createMainUI()
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, -20, 1, 0)
     title.Position = UDim2.new(0, 10, 0, 0)
-    title.Text = "HvH Arena v8.1"
+    title.Text = "HvH Arena v8.3"
     title.TextColor3 = Color3.new(1, 1, 1)
     title.BackgroundTransparency = 1
     title.TextXAlignment = Enum.TextXAlignment.Left
@@ -557,7 +559,7 @@ local function createMainUI()
                 dragging = false
             end
         end)
-        userInputService.InputChanged:Connect(function(input)
+        UserInputService.InputChanged:Connect(function(input)
             if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
                 updateSlider(input.Position.X)
             end
@@ -572,7 +574,7 @@ local function createMainUI()
     -- ============================================================
     -- DROPDOWN WITH PROPER PLAYER LIST
     -- ============================================================
-    local function createDropdown(tabData, labelText, options, default, callback)
+    local function createDropdown(tabData, labelText, defaultText, callback)
         local container = Instance.new("Frame")
         container.Size = UDim2.new(1, -10, 0, 32)
         container.Position = UDim2.new(0, 5, 0, tabData.yPos)
@@ -593,7 +595,7 @@ local function createMainUI()
         btn.Size = UDim2.new(0.4, 0, 0.75, 0)
         btn.Position = UDim2.new(0.55, 0, 0.12, 0)
         btn.BackgroundColor3 = Color3.new(0.2, 0.2, 0.25)
-        btn.Text = default
+        btn.Text = defaultText
         btn.TextColor3 = Color3.new(1, 1, 1)
         btn.Font = Enum.Font.SourceSans
         btn.TextSize = 12
@@ -610,17 +612,15 @@ local function createMainUI()
         list.ClipsDescendants = true
         list.Parent = container
 
-        -- Create list items
-        local listItems = {}
+        -- Function to rebuild the list with current players
         local function rebuildList()
             -- Clear existing items
             for _, child in pairs(list:GetChildren()) do child:Destroy() end
-            listItems = {}
             
             -- Get fresh player list
             local currentOptions = getAllPlayerNames()
             
-            -- Set list height based on number of options
+            -- Set list height based on number of options (max 8 visible)
             local itemHeight = 24
             local maxItems = math.min(#currentOptions, 8)
             list.Size = UDim2.new(0.4, 0, 0, maxItems * itemHeight)
@@ -640,10 +640,10 @@ local function createMainUI()
                     list.Visible = false
                     callback(opt)
                 end)
-                listItems[opt] = optBtn
             end
         end
-        
+
+        -- Initial build
         rebuildList()
 
         btn.MouseButton1Click:Connect(function()
@@ -655,7 +655,7 @@ local function createMainUI()
         tabData.container.Size = UDim2.new(1, 0, 0, tabData.yPos + 10)
         tabData.scroll.CanvasSize = UDim2.new(0, 0, 0, tabData.yPos + 20)
         
-        -- Return the button and list for later updating
+        -- Return the button, list, and rebuild function
         return btn, list, rebuildList
     end
 
@@ -784,7 +784,7 @@ local function createMainUI()
         isNoClip = v
         if v then
             if not noClipConnection then
-                noClipConnection = game:GetService("RunService").Stepped:Connect(function()
+                noClipConnection = RunService.Stepped:Connect(function()
                     local char = player.Character
                     if char then
                         for _, part in pairs(char:GetDescendants()) do
@@ -863,10 +863,10 @@ local function createMainUI()
         end
     end)
     
-    -- Rage Target Dropdown
-    rageTargetBtn, rageTargetList, rageRebuild = createDropdown(rageData, "Rage Target", getAllPlayerNames(), "Select Player", function(v)
+    -- Rage Target Dropdown - THIS IS THE FIXED ONE
+    rageTargetBtn, rageTargetList, rageRebuildFunc = createDropdown(rageData, "Rage Target", "Select Player", function(v)
         if v ~= "Select Player" then
-            rageTarget = game.Players:FindFirstChild(v)
+            rageTarget = PlayersService:FindFirstChild(v)
             if rageTeleportEnabled and rageTarget then startRageTeleport() end
         else
             rageTarget = nil
@@ -878,9 +878,8 @@ local function createMainUI()
         rapidFireEnabled = v
         if v then
             if rapidFireConnection then rapidFireConnection:Disconnect() end
-            rapidFireConnection = game:GetService("RunService").Heartbeat:Connect(function()
-                if rapidFireEnabled and userInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-                    local VirtualInputManager = game:GetService("VirtualInputManager")
+            rapidFireConnection = RunService.Heartbeat:Connect(function()
+                if rapidFireEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
                     VirtualInputManager:SendMouseButtonEvent(Vector2.new(0, 0), 0, true, false, 0)
                     task.wait(rapidFireRate)
                     VirtualInputManager:SendMouseButtonEvent(Vector2.new(0, 0), 0, false, false, 0)
@@ -897,9 +896,8 @@ local function createMainUI()
         rapidMeleeEnabled = v
         if v then
             if rapidMeleeConnection then rapidMeleeConnection:Disconnect() end
-            rapidMeleeConnection = game:GetService("RunService").Heartbeat:Connect(function()
-                if rapidMeleeEnabled and userInputService:IsKeyDown(meleeKey) then
-                    local VirtualInputManager = game:GetService("VirtualInputManager")
+            rapidMeleeConnection = RunService.Heartbeat:Connect(function()
+                if rapidMeleeEnabled and UserInputService:IsKeyDown(meleeKey) then
                     VirtualInputManager:SendKeyEvent(true, meleeKey, false, false, 0)
                     task.wait(rapidMeleeRate)
                     VirtualInputManager:SendKeyEvent(false, meleeKey, false, false, 0)
@@ -920,19 +918,21 @@ local function createMainUI()
     -- PLAYER LIST UPDATE FUNCTION
     -- ============================================================
     local function updateAllPlayerLists()
-        if rageRebuild then rageRebuild() end
+        if rageRebuildFunc then
+            rageRebuildFunc()
+        end
     end
 
     -- ============================================================
     -- INITIALIZE ESP
     -- ============================================================
-    for _, otherPlayer in pairs(game.Players:GetPlayers()) do
+    for _, otherPlayer in pairs(PlayersService:GetPlayers()) do
         if otherPlayer ~= player then
             createESP(otherPlayer)
         end
     end
 
-    game.Players.PlayerAdded:Connect(function(newPlayer)
+    PlayersService.PlayerAdded:Connect(function(newPlayer)
         if newPlayer ~= player then
             task.wait(0.5)
             createESP(newPlayer)
@@ -940,26 +940,40 @@ local function createMainUI()
         end
     end)
 
-    game.Players.PlayerRemoved:Connect(function()
+    PlayersService.PlayerRemoved:Connect(function()
         task.wait(0.5)
         updateAllPlayerLists()
     end)
 
     -- ============================================================
-    -- LOOPS & EVENTS (from universal script)
+    -- LOOPS & EVENTS
     -- ============================================================
     
     -- ESP Update
-    game:GetService("RunService").RenderStepped:Connect(updateESP)
+    RunService.RenderStepped:Connect(updateESP)
     
     -- Flight Update
-    game:GetService("RunService").RenderStepped:Connect(handleFlying)
+    RunService.RenderStepped:Connect(handleFlying)
     
-    -- Update player lists periodically
+    -- Update player lists periodically and on player changes
     task.wait(1)
     updateAllPlayerLists()
+    
+    -- Also update when switching to rage tab
+    local originalSwitch = switchTab
+    switchTab = function(tabName)
+        originalSwitch(tabName)
+        if tabName == "Rage" then
+            updateAllPlayerLists()
+        end
+    end
+    
+    -- Re-bind tab buttons to use new switch function
+    for name, btn in pairs(tabButtons) do
+        btn.MouseButton1Click:Connect(function() switchTab(name) end)
+    end
 
-    -- Aimbot (from universal script)
+    -- Aimbot
     mouse.Button1Down:Connect(function()
         isLockedOn = true
         lockOntoNearestPlayer()
@@ -970,7 +984,7 @@ local function createMainUI()
     end)
 
     -- Continuous aimbot
-    game:GetService("RunService").RenderStepped:Connect(function()
+    RunService.RenderStepped:Connect(function()
         if isLockedOn then
             lockOntoNearestPlayer()
         end
@@ -979,7 +993,7 @@ local function createMainUI()
     -- ============================================================
     -- RIGHT SHIFT TOGGLE
     -- ============================================================
-    userInputService.InputBegan:Connect(function(input, gameProcessed)
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if input.KeyCode == Enum.KeyCode.RightShift then
             uiVisible = not uiVisible
             if screenGui then
@@ -1004,7 +1018,7 @@ local function createMainUI()
         espDrawings = {}
     end)
 
-    print("✅ HvH Arena v8.1 loaded!")
+    print("✅ HvH Arena v8.3 loaded!")
     print("🔑 Press RightShift to toggle UI")
 end
 
@@ -1108,7 +1122,7 @@ local function createKeySystem()
             keyInput.Visible = false
             unlockBtn.Visible = false
             title.Text = "✅ Unlocked!"
-            subtitle.Text = "You now have access to HvH Arena v8.1"
+            subtitle.Text = "You now have access to HvH Arena v8.3"
             
             print("Key accepted! Creating main UI...")
             
@@ -1130,6 +1144,6 @@ end
 -- ============================================================
 -- START
 -- ============================================================
-print("🔐 HvH Arena v8.1 - Key system active")
+print("🔐 HvH Arena v8.3 - Key system active")
 print("📝 Enter key: UEONTOP")
 createKeySystem()
