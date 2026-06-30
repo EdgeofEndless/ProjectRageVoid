@@ -1,5 +1,5 @@
 --[[
-    HvH ARENA v8.0 - BASED ON UNIVERSAL SCRIPT
+    HvH ARENA v8.1 - FULLY FIXED DROPDOWN + ALL FEATURES
     Key: UEONTOP
 ]]
 
@@ -68,6 +68,14 @@ local uiVisible = true
 local currentTab = "Main"
 local keyGui = nil
 
+-- Dropdown references
+local teleportDropdownBtn = nil
+local teleportDropdownList = nil
+local killDropdownBtn = nil
+local killDropdownList = nil
+local rageTargetBtn = nil
+local rageTargetList = nil
+
 -- ============================================================
 -- HELPERS
 -- ============================================================
@@ -92,6 +100,16 @@ local function getPlayers()
         end
     end
     return list
+end
+
+local function getAllPlayerNames()
+    local names = {"Select Player"}
+    for _, p in pairs(game.Players:GetPlayers()) do
+        if p ~= player then
+            table.insert(names, p.Name)
+        end
+    end
+    return names
 end
 
 local function clamp(v, low, high) return math.min(high, math.max(low, v)) end
@@ -122,11 +140,14 @@ local function createESP(otherPlayer)
     drawings.name.Color = espColor
     drawings.name.Transparency = espTransparency
     drawings.name.Font = espFont
+    drawings.name.Center = true
+    drawings.name.Outline = true
+    drawings.name.OutlineColor = Color3.new(0, 0, 0)
 
-    drawings.faceLine = Drawing.new("Line")
-    drawings.faceLine.Thickness = espThickness
-    drawings.faceLine.Color = espColor
-    drawings.faceLine.Transparency = espTransparency
+    drawings.health = Drawing.new("Line")
+    drawings.health.Thickness = 3
+    drawings.health.Color = Color3.new(0, 1, 0)
+    drawings.health.Transparency = 0.5
 
     espDrawings[otherPlayer] = drawings
 end
@@ -145,7 +166,7 @@ local function updateESP()
             local headPosition, headVisible = camera:WorldToViewportPoint(head.Position)
 
             if headVisible and isPlayerAlive(otherPlayer.Character) then
-                local size = Vector2.new(50, 100)
+                local size = Vector2.new(50, 80)
                 drawings.box.PointA = Vector2.new(headPosition.X - size.X / 2, headPosition.Y - size.Y / 2)
                 drawings.box.PointB = Vector2.new(headPosition.X + size.X / 2, headPosition.Y - size.Y / 2)
                 drawings.box.PointC = Vector2.new(headPosition.X + size.X / 2, headPosition.Y + size.Y / 2)
@@ -154,20 +175,21 @@ local function updateESP()
 
                 drawings.name.Position = Vector2.new(headPosition.X, headPosition.Y - size.Y / 2 - 20)
                 drawings.name.Visible = true
-
-                local faceDirection = head.CFrame.LookVector * 20
-                local faceEndPosition, faceEndVisible = camera:WorldToViewportPoint(head.Position + faceDirection)
-                if faceEndVisible then
-                    drawings.faceLine.From = Vector2.new(headPosition.X, headPosition.Y)
-                    drawings.faceLine.To = Vector2.new(faceEndPosition.X, faceEndPosition.Y)
-                    drawings.faceLine.Visible = true
-                else
-                    drawings.faceLine.Visible = false
+                
+                local humanoid = otherPlayer.Character:FindFirstChild("Humanoid")
+                if humanoid then
+                    local healthPercent = humanoid.Health / humanoid.MaxHealth
+                    drawings.health.From = Vector2.new(headPosition.X - size.X / 2, headPosition.Y + size.Y / 2 + 5)
+                    drawings.health.To = Vector2.new(headPosition.X - size.X / 2 + size.X * healthPercent, headPosition.Y + size.Y / 2 + 5)
+                    drawings.health.Color = healthPercent > 0.5 and Color3.new(0, 1, 0) or 
+                                             healthPercent > 0.25 and Color3.new(1, 1, 0) or 
+                                             Color3.new(1, 0, 0)
+                    drawings.health.Visible = true
                 end
             else
                 drawings.box.Visible = false
                 drawings.name.Visible = false
-                drawings.faceLine.Visible = false
+                drawings.health.Visible = false
             end
         else
             for _, d in pairs(drawings) do d.Visible = false end
@@ -182,10 +204,6 @@ local function findNearestPlayerHead()
     local nearestPlayer = nil
     local nearestAngle = aimFOV
     local center = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
-    local playerPosition = player.Character and player.Character:FindFirstChild("Head")
-    if not playerPosition then return nil end
-
-    local cameraLookVector = camera.CFrame.LookVector
 
     for _, otherPlayer in pairs(game.Players:GetPlayers()) do
         if otherPlayer ~= player and otherPlayer.Character then
@@ -318,8 +336,8 @@ local function createMainUI()
     mainFrame = Instance.new("Frame")
     mainFrame.Size = UDim2.new(0, 400, 0, 550)
     mainFrame.Position = UDim2.new(0.5, -200, 0.5, -275)
-    mainFrame.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
-    mainFrame.BackgroundTransparency = 0.2
+    mainFrame.BackgroundColor3 = Color3.new(0.08, 0.08, 0.12)
+    mainFrame.BackgroundTransparency = 0.1
     mainFrame.BorderSizePixel = 0
     mainFrame.Active = true
     mainFrame.Draggable = true
@@ -328,14 +346,14 @@ local function createMainUI()
     -- Header
     local header = Instance.new("Frame")
     header.Size = UDim2.new(1, 0, 0, 30)
-    header.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+    header.BackgroundColor3 = Color3.new(0.15, 0.15, 0.2)
     header.BorderSizePixel = 0
     header.Parent = mainFrame
 
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, -20, 1, 0)
     title.Position = UDim2.new(0, 10, 0, 0)
-    title.Text = "HvH Arena v8.0"
+    title.Text = "HvH Arena v8.1"
     title.TextColor3 = Color3.new(1, 1, 1)
     title.BackgroundTransparency = 1
     title.TextXAlignment = Enum.TextXAlignment.Left
@@ -361,7 +379,7 @@ local function createMainUI()
     local tabBar = Instance.new("Frame")
     tabBar.Size = UDim2.new(1, 0, 0, 30)
     tabBar.Position = UDim2.new(0, 0, 0, 30)
-    tabBar.BackgroundColor3 = Color3.new(0.15, 0.15, 0.15)
+    tabBar.BackgroundColor3 = Color3.new(0.12, 0.12, 0.16)
     tabBar.BorderSizePixel = 0
     tabBar.Parent = mainFrame
 
@@ -375,8 +393,8 @@ local function createMainUI()
         btn.Size = UDim2.new(0, 80, 1, 0)
         btn.Position = UDim2.new(0, (i-1) * 80, 0, 0)
         btn.Text = tabName:upper()
-        btn.TextColor3 = (i == 1) and Color3.new(1, 1, 1) or Color3.new(0.7, 0.7, 0.7)
-        btn.BackgroundColor3 = (i == 1) and Color3.new(0.3, 0.3, 0.3) or Color3.new(0.15, 0.15, 0.15)
+        btn.TextColor3 = (i == 1) and Color3.new(1, 1, 1) or Color3.new(0.6, 0.6, 0.7)
+        btn.BackgroundColor3 = (i == 1) and Color3.new(0.25, 0.25, 0.3) or Color3.new(0.12, 0.12, 0.16)
         btn.BorderSizePixel = 0
         btn.Font = Enum.Font.SourceSansBold
         btn.TextSize = 12
@@ -409,8 +427,8 @@ local function createMainUI()
         currentTab = tabName
         for name, scroll in pairs(tabScrolls) do
             scroll.Visible = (name == tabName)
-            tabButtons[name].BackgroundColor3 = (name == tabName) and Color3.new(0.3, 0.3, 0.3) or Color3.new(0.15, 0.15, 0.15)
-            tabButtons[name].TextColor3 = (name == tabName) and Color3.new(1, 1, 1) or Color3.new(0.7, 0.7, 0.7)
+            tabButtons[name].BackgroundColor3 = (name == tabName) and Color3.new(0.25, 0.25, 0.3) or Color3.new(0.12, 0.12, 0.16)
+            tabButtons[name].TextColor3 = (name == tabName) and Color3.new(1, 1, 1) or Color3.new(0.6, 0.6, 0.7)
         end
     end
 
@@ -551,9 +569,12 @@ local function createMainUI()
         return container
     end
 
-    local function addDropdown(tabData, labelText, options, default, callback)
+    -- ============================================================
+    -- DROPDOWN WITH PROPER PLAYER LIST
+    -- ============================================================
+    local function createDropdown(tabData, labelText, options, default, callback)
         local container = Instance.new("Frame")
-        container.Size = UDim2.new(1, -10, 0, 30)
+        container.Size = UDim2.new(1, -10, 0, 32)
         container.Position = UDim2.new(0, 5, 0, tabData.yPos)
         container.BackgroundTransparency = 1
         container.Parent = tabData.container
@@ -569,9 +590,9 @@ local function createMainUI()
         lbl.Parent = container
 
         local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(0.4, 0, 0.8, 0)
-        btn.Position = UDim2.new(0.55, 0, 0.1, 0)
-        btn.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+        btn.Size = UDim2.new(0.4, 0, 0.75, 0)
+        btn.Position = UDim2.new(0.55, 0, 0.12, 0)
+        btn.BackgroundColor3 = Color3.new(0.2, 0.2, 0.25)
         btn.Text = default
         btn.TextColor3 = Color3.new(1, 1, 1)
         btn.Font = Enum.Font.SourceSans
@@ -579,42 +600,63 @@ local function createMainUI()
         btn.BorderSizePixel = 0
         btn.Parent = container
 
-        local selected = default
         local list = Instance.new("Frame")
-        list.Size = UDim2.new(0.4, 0, 0, #options * 24)
-        list.Position = UDim2.new(0.55, 0, 1, 0)
-        list.BackgroundColor3 = Color3.new(0.15, 0.15, 0.15)
+        list.Size = UDim2.new(0.4, 0, 0, 10)
+        list.Position = UDim2.new(0.55, 0, 1, 2)
+        list.BackgroundColor3 = Color3.new(0.15, 0.15, 0.2)
         list.BorderSizePixel = 0
         list.Visible = false
         list.ZIndex = 10
+        list.ClipsDescendants = true
         list.Parent = container
 
-        for _, opt in ipairs(options) do
-            local optBtn = Instance.new("TextButton")
-            optBtn.Size = UDim2.new(1, 0, 0, 24)
-            optBtn.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
-            optBtn.Text = opt
-            optBtn.TextColor3 = Color3.new(1, 1, 1)
-            optBtn.Font = Enum.Font.SourceSans
-            optBtn.TextSize = 12
-            optBtn.BorderSizePixel = 0
-            optBtn.Parent = list
-            optBtn.MouseButton1Click:Connect(function()
-                selected = opt
-                btn.Text = opt
-                list.Visible = false
-                callback(opt)
-            end)
+        -- Create list items
+        local listItems = {}
+        local function rebuildList()
+            -- Clear existing items
+            for _, child in pairs(list:GetChildren()) do child:Destroy() end
+            listItems = {}
+            
+            -- Get fresh player list
+            local currentOptions = getAllPlayerNames()
+            
+            -- Set list height based on number of options
+            local itemHeight = 24
+            local maxItems = math.min(#currentOptions, 8)
+            list.Size = UDim2.new(0.4, 0, 0, maxItems * itemHeight)
+            
+            for i, opt in ipairs(currentOptions) do
+                local optBtn = Instance.new("TextButton")
+                optBtn.Size = UDim2.new(1, 0, 0, itemHeight)
+                optBtn.BackgroundColor3 = (i % 2 == 0) and Color3.new(0.18, 0.18, 0.22) or Color3.new(0.15, 0.15, 0.2)
+                optBtn.Text = opt
+                optBtn.TextColor3 = Color3.new(1, 1, 1)
+                optBtn.Font = Enum.Font.SourceSans
+                optBtn.TextSize = 12
+                optBtn.BorderSizePixel = 0
+                optBtn.Parent = list
+                optBtn.MouseButton1Click:Connect(function()
+                    btn.Text = opt
+                    list.Visible = false
+                    callback(opt)
+                end)
+                listItems[opt] = optBtn
+            end
         end
+        
+        rebuildList()
 
         btn.MouseButton1Click:Connect(function()
+            rebuildList() -- Refresh list before showing
             list.Visible = not list.Visible
         end)
 
-        tabData.yPos = tabData.yPos + 34
+        tabData.yPos = tabData.yPos + 36
         tabData.container.Size = UDim2.new(1, 0, 0, tabData.yPos + 10)
         tabData.scroll.CanvasSize = UDim2.new(0, 0, 0, tabData.yPos + 20)
-        return btn, list
+        
+        -- Return the button and list for later updating
+        return btn, list, rebuildList
     end
 
     local function addTextBox(tabData, labelText, placeholder, callback)
@@ -637,7 +679,7 @@ local function createMainUI()
         local box = Instance.new("TextBox")
         box.Size = UDim2.new(0.5, 0, 0.8, 0)
         box.Position = UDim2.new(0.35, 0, 0.1, 0)
-        box.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+        box.BackgroundColor3 = Color3.new(0.2, 0.2, 0.25)
         box.TextColor3 = Color3.new(1, 1, 1)
         box.PlaceholderText = placeholder
         box.Font = Enum.Font.SourceSans
@@ -654,11 +696,6 @@ local function createMainUI()
         tabData.scroll.CanvasSize = UDim2.new(0, 0, 0, tabData.yPos + 20)
         return box
     end
-
-    -- ============================================================
-    -- RAGE TARGET DROPDOWN REF
-    -- ============================================================
-    local rageTargetBtn, rageTargetList
 
     -- ============================================================
     -- POPULATE TABS
@@ -826,7 +863,8 @@ local function createMainUI()
         end
     end)
     
-    rageTargetBtn, rageTargetList = addDropdown(rageData, "Rage Target", {"Select Player"}, "Select Player", function(v)
+    -- Rage Target Dropdown
+    rageTargetBtn, rageTargetList, rageRebuild = createDropdown(rageData, "Rage Target", getAllPlayerNames(), "Select Player", function(v)
         if v ~= "Select Player" then
             rageTarget = game.Players:FindFirstChild(v)
             if rageTeleportEnabled and rageTarget then startRageTeleport() end
@@ -879,38 +917,10 @@ local function createMainUI()
     end)
 
     -- ============================================================
-    -- UPDATE PLAYER LISTS
+    -- PLAYER LIST UPDATE FUNCTION
     -- ============================================================
-    local function updatePlayerLists()
-        local players = getPlayers()
-        local names = {"Select Player"}
-        for _, p in pairs(players) do table.insert(names, p.Name) end
-        
-        if rageTargetList then
-            for _, child in pairs(rageTargetList:GetChildren()) do child:Destroy() end
-            rageTargetList.Size = UDim2.new(0.4, 0, 0, #names * 24)
-            for _, name in pairs(names) do
-                local btn = Instance.new("TextButton")
-                btn.Size = UDim2.new(1, 0, 0, 24)
-                btn.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
-                btn.Text = name
-                btn.TextColor3 = Color3.new(1, 1, 1)
-                btn.Font = Enum.Font.SourceSans
-                btn.TextSize = 12
-                btn.BorderSizePixel = 0
-                btn.Parent = rageTargetList
-                btn.MouseButton1Click:Connect(function()
-                    rageTargetBtn.Text = name
-                    rageTargetList.Visible = false
-                    if name ~= "Select Player" then
-                        rageTarget = game.Players:FindFirstChild(name)
-                        if rageTeleportEnabled and rageTarget then startRageTeleport() end
-                    else
-                        rageTarget = nil
-                    end
-                end)
-            end
-        end
+    local function updateAllPlayerLists()
+        if rageRebuild then rageRebuild() end
     end
 
     -- ============================================================
@@ -926,7 +936,13 @@ local function createMainUI()
         if newPlayer ~= player then
             task.wait(0.5)
             createESP(newPlayer)
+            updateAllPlayerLists()
         end
+    end)
+
+    game.Players.PlayerRemoved:Connect(function()
+        task.wait(0.5)
+        updateAllPlayerLists()
     end)
 
     -- ============================================================
@@ -939,11 +955,9 @@ local function createMainUI()
     -- Flight Update
     game:GetService("RunService").RenderStepped:Connect(handleFlying)
     
-    -- Player list updates
-    game.Players.PlayerAdded:Connect(function() task.wait(0.5); updatePlayerLists() end)
-    game.Players.PlayerRemoved:Connect(function() task.wait(0.5); updatePlayerLists() end)
-    task.wait(0.5)
-    updatePlayerLists()
+    -- Update player lists periodically
+    task.wait(1)
+    updateAllPlayerLists()
 
     -- Aimbot (from universal script)
     mouse.Button1Down:Connect(function()
@@ -990,7 +1004,7 @@ local function createMainUI()
         espDrawings = {}
     end)
 
-    print("✅ HvH Arena v8.0 loaded!")
+    print("✅ HvH Arena v8.1 loaded!")
     print("🔑 Press RightShift to toggle UI")
 end
 
@@ -1094,7 +1108,7 @@ local function createKeySystem()
             keyInput.Visible = false
             unlockBtn.Visible = false
             title.Text = "✅ Unlocked!"
-            subtitle.Text = "You now have access to HvH Arena v8.0"
+            subtitle.Text = "You now have access to HvH Arena v8.1"
             
             print("Key accepted! Creating main UI...")
             
@@ -1116,6 +1130,6 @@ end
 -- ============================================================
 -- START
 -- ============================================================
-print("🔐 HvH Arena v8.0 - Key system active")
+print("🔐 HvH Arena v8.1 - Key system active")
 print("📝 Enter key: UEONTOP")
 createKeySystem()
