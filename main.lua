@@ -1,9 +1,6 @@
 --[[
-    HvH ARENA v5.1 - FIXED KEY SYSTEM
+    HvH ARENA v5.2 - FULLY FIXED
     Key: UEONTOP
-    Features: Aimbot, ESP, Flight, NoClip, God Mode, Invisibility,
-    Speed/Jump/Health, Teleport/Kill/Respawn, Rage Teleport,
-    Rapid Fire, Rapid Melee, Clean Developer UI
 ]]
 
 -- Services
@@ -55,26 +52,17 @@ end
 
 -- ESP storage
 local espObjects = {}
-
--- Flight
 local bodyVel = nil
 local noclipConnection = nil
-
--- Rage state
 local rageTarget = nil
 local rageOriginalPos = nil
 local rageTimer = nil
 local rapidFireConnection = nil
 local rapidMeleeConnection = nil
-
--- UI
 local screenGui = nil
-local mainFrame = nil
 local uiVisible = true
-local currentTab = "Main"
-local isUnlocked = false
 
--- UI element references for dropdown updates
+-- UI element references
 local teleportBtn, teleportList, killBtn, killList, rageTargetBtn, rageTargetList
 
 -- ============================================================
@@ -98,24 +86,22 @@ local function getPlayers()
 end
 
 -- ============================================================
--- CORE FEATURE IMPLEMENTATIONS (defined BEFORE UI)
+-- CORE FEATURES (DEFINED FIRST)
 -- ============================================================
 
--- ESP System
+-- ESP
 local function createESP(player)
     if not player.Character or not player.Character:FindFirstChild("Head") then return end
     if espObjects[player] then
         for _, obj in pairs(espObjects[player]) do obj:Remove() end
         espObjects[player] = nil
     end
-    
     local drawings = {}
     drawings.box = Drawing.new("Quad")
     drawings.box.Thickness = state.espThickness
     drawings.box.Color = state.espColor
     drawings.box.Transparency = 0.3
     drawings.box.Filled = false
-    
     drawings.name = Drawing.new("Text")
     drawings.name.Text = player.Name
     drawings.name.Size = 14
@@ -123,11 +109,9 @@ local function createESP(player)
     drawings.name.Center = true
     drawings.name.Outline = true
     drawings.name.OutlineColor = Color3.fromRGB(0, 0, 0)
-    
     drawings.health = Drawing.new("Line")
     drawings.health.Thickness = 3
     drawings.health.Color = Color3.fromRGB(0, 255, 0)
-    
     espObjects[player] = drawings
     return drawings
 end
@@ -139,7 +123,6 @@ local function updateESP()
         end
         return
     end
-    
     for player, drawings in pairs(espObjects) do
         if player.Character and player.Character:FindFirstChild("Head") and isAlive(player.Character) then
             local head = player.Character.Head
@@ -151,18 +134,14 @@ local function updateESP()
                 drawings.box.PointC = Vector2.new(pos.X + size/2, pos.Y + size/2)
                 drawings.box.PointD = Vector2.new(pos.X - size/2, pos.Y + size/2)
                 drawings.box.Visible = true
-                
                 drawings.name.Position = Vector2.new(pos.X, pos.Y - size - 20)
                 drawings.name.Visible = true
-                
                 local humanoid = player.Character:FindFirstChild("Humanoid")
                 if humanoid then
-                    local healthPercent = humanoid.Health / humanoid.MaxHealth
+                    local hp = humanoid.Health / humanoid.MaxHealth
                     drawings.health.From = Vector2.new(pos.X - size/2, pos.Y + size/2 + 5)
-                    drawings.health.To = Vector2.new(pos.X - size/2 + size * healthPercent, pos.Y + size/2 + 5)
-                    drawings.health.Color = healthPercent > 0.5 and Color3.fromRGB(0, 255, 0) or 
-                                             healthPercent > 0.25 and Color3.fromRGB(255, 255, 0) or 
-                                             Color3.fromRGB(255, 0, 0)
+                    drawings.health.To = Vector2.new(pos.X - size/2 + size * hp, pos.Y + size/2 + 5)
+                    drawings.health.Color = hp > 0.5 and Color3.fromRGB(0, 255, 0) or hp > 0.25 and Color3.fromRGB(255, 255, 0) or Color3.fromRGB(255, 0, 0)
                     drawings.health.Visible = true
                 end
             else
@@ -181,7 +160,6 @@ local function findTarget()
     local closest = nil
     local closestAngle = state.aimFOV
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") and isAlive(player.Character) then
             local head = player.Character.Head
@@ -211,19 +189,14 @@ local function updateFlight()
             end
         end
         if bodyVel then
-            local direction = Vector3.new(0, 0, 0)
-            if UserInputService:IsKeyDown(Enum.KeyCode.W) then direction = direction + Camera.CFrame.LookVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.S) then direction = direction - Camera.CFrame.LookVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.A) then direction = direction - Camera.CFrame.RightVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.D) then direction = direction + Camera.CFrame.RightVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then direction = direction + Vector3.new(0, 1, 0) end
-            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then direction = direction - Vector3.new(0, 1, 0) end
-            
-            if direction.Magnitude > 0 then
-                bodyVel.Velocity = direction.Unit * state.flySpeed
-            else
-                bodyVel.Velocity = Vector3.new(0, 0, 0)
-            end
+            local dir = Vector3.new(0, 0, 0)
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir = dir + Camera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir = dir - Camera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir = dir - Camera.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir = dir + Camera.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then dir = dir + Vector3.new(0, 1, 0) end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then dir = dir - Vector3.new(0, 1, 0) end
+            if dir.Magnitude > 0 then bodyVel.Velocity = dir.Unit * state.flySpeed else bodyVel.Velocity = Vector3.new(0, 0, 0) end
         end
     else
         if bodyVel then bodyVel:Destroy(); bodyVel = nil end
@@ -238,9 +211,7 @@ local function updateNoClip()
                 getChar()
                 if playerChar then
                     for _, part in pairs(playerChar:GetDescendants()) do
-                        if part:IsA("BasePart") then
-                            part.CanCollide = false
-                        end
+                        if part:IsA("BasePart") then part.CanCollide = false end
                     end
                 end
             end)
@@ -250,9 +221,7 @@ local function updateNoClip()
         getChar()
         if playerChar then
             for _, part in pairs(playerChar:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = true
-                end
+                if part:IsA("BasePart") then part.CanCollide = true end
             end
         end
     end
@@ -285,33 +254,26 @@ local function updateInvisibility()
     end
 end
 
--- Rage Teleport (Back-and-Forth)
+-- Rage Teleport
 local function startRageTeleport()
     if rageTimer then rageTimer:Disconnect(); rageTimer = nil end
     if not state.rageTeleport or not rageTarget or not rageTarget.Character then return end
-    
     getChar()
     if not rootPart then return end
-    
     local targetRoot = rageTarget.Character:FindFirstChild("HumanoidRootPart")
     if not targetRoot then return end
-    
     rageOriginalPos = rootPart.Position
     local toggle = false
-    
     rageTimer = RunService.Heartbeat:Connect(function()
         if not state.rageTeleport or not rageTarget or not rageTarget.Character then
             rageTimer:Disconnect()
             rageTimer = nil
             return
         end
-        
         getChar()
         if not rootPart then return end
-        
         local newTargetRoot = rageTarget.Character:FindFirstChild("HumanoidRootPart")
         if not newTargetRoot then return end
-        
         if toggle then
             rootPart.CFrame = CFrame.new(rageOriginalPos)
         else
@@ -322,16 +284,17 @@ local function startRageTeleport()
 end
 
 -- ============================================================
--- MAIN UI CREATION - CLEAN DEVELOPER DESIGN
+-- MAIN UI CREATION
 -- ============================================================
 local function createMainUI()
+    print("Creating main UI...")
+    
     screenGui = Instance.new("ScreenGui")
     screenGui.Name = "HvH_Arena"
     screenGui.ResetOnSpawn = false
     screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     screenGui.Parent = LocalPlayer.PlayerGui
 
-    -- Main Frame
     mainFrame = Instance.new("Frame")
     mainFrame.Size = UDim2.new(0, 420, 0, 580)
     mainFrame.Position = UDim2.new(0.5, -210, 0.5, -290)
@@ -389,7 +352,6 @@ local function createMainUI()
     tabBar.BorderSizePixel = 0
     tabBar.Parent = mainFrame
 
-    -- Tab buttons
     local tabs = {"Main", "Combat", "Movement", "Visuals", "Rage"}
     local tabButtons = {}
     local tabContents = {}
@@ -419,9 +381,7 @@ local function createMainUI()
         tabContents[tabName] = content
     end
 
-    -- Tab switching
     local function switchTab(tabName)
-        currentTab = tabName
         for name, content in pairs(tabContents) do
             content.Visible = (name == tabName)
             tabButtons[name].BackgroundColor3 = (name == tabName) and Color3.fromRGB(40, 40, 55) or Color3.fromRGB(25, 25, 35)
@@ -430,14 +390,10 @@ local function createMainUI()
     end
 
     for name, btn in pairs(tabButtons) do
-        btn.MouseButton1Click:Connect(function()
-            switchTab(name)
-        end)
+        btn.MouseButton1Click:Connect(function() switchTab(name) end)
     end
 
-    -- ============================================================
     -- UI BUILDERS
-    -- ============================================================
     local function addHeader(parent, text)
         local h = Instance.new("TextLabel")
         h.Size = UDim2.new(1, -10, 0, 24)
@@ -657,42 +613,31 @@ local function createMainUI()
         box.Parent = container
 
         box.FocusLost:Connect(function(enter)
-            if enter then
-                callback(box.Text)
-            end
+            if enter then callback(box.Text) end
         end)
 
         parent.yPos = (parent.yPos or 5) + 39
         return box
     end
 
-    -- ============================================================
     -- POPULATE TABS
-    -- ============================================================
-    
-    -- === MAIN TAB ===
     local mainContent = tabContents["Main"]
     mainContent.yPos = 5
-    
     addHeader(mainContent, "⚙ CONFIGURATION")
     addToggle(mainContent, "ESP", state.esp, function(v) state.esp = v end)
     addToggle(mainContent, "Aimbot", state.aimbot, function(v) state.aimbot = v end)
     addToggle(mainContent, "Silent Aim", state.silentAim, function(v) state.silentAim = v end)
     addToggle(mainContent, "Wall Hack", state.wallHack, function(v) state.wallHack = v end)
-    
     addHeader(mainContent, "🎯 AIMBOT SETTINGS")
     addSlider(mainContent, "FOV", 10, 180, state.aimFOV, function(v) state.aimFOV = v end)
     addSlider(mainContent, "Smoothness", 0, 1, state.aimSmoothness, function(v) state.aimSmoothness = v end)
     addSlider(mainContent, "Range", 100, 1000, state.lockOnRange, function(v) state.lockOnRange = v end)
 
-    -- === COMBAT TAB ===
     local combatContent = tabContents["Combat"]
     combatContent.yPos = 5
-    
     addHeader(combatContent, "⚔ COMBAT")
     addToggle(combatContent, "God Mode", state.godMode, function(v) state.godMode = v end)
     addToggle(combatContent, "Invisibility", state.invisibility, function(v) state.invisibility = v end)
-    
     addHeader(combatContent, "📊 STATS")
     addTextBox(combatContent, "WalkSpeed", "Enter speed", function(v)
         local val = tonumber(v)
@@ -706,51 +651,35 @@ local function createMainUI()
         local val = tonumber(v)
         if val then getChar(); if humanoid then humanoid.MaxHealth = val; humanoid.Health = val end end
     end)
-    
     addHeader(combatContent, "👥 PLAYER ACTIONS")
-    
     teleportBtn, teleportList = addDropdown(combatContent, "Teleport to", {"Select Player"}, "Select Player", function(v)
         local target = Players:FindFirstChild(v)
         if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
             getChar()
-            if rootPart then
-                rootPart.CFrame = target.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
-            end
+            if rootPart then rootPart.CFrame = target.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0) end
         end
     end)
-    
     killBtn, killList = addDropdown(combatContent, "Kill Player", {"Select Player"}, "Select Player", function(v)
         local target = Players:FindFirstChild(v)
         if target and target.Character and target.Character:FindFirstChild("Humanoid") then
             target.Character.Humanoid.Health = 0
         end
     end)
-    
-    addToggle(combatContent, "Respawn", false, function(v)
-        if v then
-            LocalPlayer:LoadCharacter()
-        end
-    end)
+    addToggle(combatContent, "Respawn", false, function(v) if v then LocalPlayer:LoadCharacter() end end)
 
-    -- === MOVEMENT TAB ===
     local movementContent = tabContents["Movement"]
     movementContent.yPos = 5
-    
     addHeader(movementContent, "🚀 FLIGHT")
     addToggle(movementContent, "Fly", state.fly, function(v) state.fly = v end)
     addSlider(movementContent, "Fly Speed", 10, 200, state.flySpeed, function(v) state.flySpeed = v end)
-    
     addHeader(movementContent, "🔄 MOVEMENT")
     addToggle(movementContent, "NoClip", state.noclip, function(v) state.noclip = v end)
 
-    -- === VISUALS TAB ===
     local visualsContent = tabContents["Visuals"]
     visualsContent.yPos = 5
-    
     addHeader(visualsContent, "🎨 ESP SETTINGS")
     addToggle(visualsContent, "ESP Enabled", state.esp, function(v) state.esp = v end)
     addSlider(visualsContent, "ESP Thickness", 1, 5, state.espThickness, function(v) state.espThickness = v end)
-    
     addHeader(visualsContent, "🎯 ESP COLOR")
     local colorPresets = {"Red", "Green", "Blue", "Yellow", "Purple", "Orange", "Cyan", "White"}
     local colorValues = {
@@ -763,13 +692,11 @@ local function createMainUI()
         Cyan = Color3.fromRGB(0, 255, 255),
         White = Color3.fromRGB(255, 255, 255)
     }
-    
     local colorContainer = Instance.new("Frame")
     colorContainer.Size = UDim2.new(1, -10, 0, 40)
     colorContainer.Position = UDim2.new(0, 5, 0, visualsContent.yPos or 5)
     colorContainer.BackgroundTransparency = 1
     colorContainer.Parent = visualsContent
-    
     for i, colorName in ipairs(colorPresets) do
         local btn = Instance.new("TextButton")
         btn.Size = UDim2.new(0.1, 0, 0.8, 0)
@@ -778,19 +705,14 @@ local function createMainUI()
         btn.Text = ""
         btn.BorderSizePixel = 0
         btn.Parent = colorContainer
-        btn.MouseButton1Click:Connect(function()
-            state.espColor = colorValues[colorName]
-        end)
+        btn.MouseButton1Click:Connect(function() state.espColor = colorValues[colorName] end)
     end
     visualsContent.yPos = (visualsContent.yPos or 5) + 44
 
-    -- === RAGE TAB ===
     local rageContent = tabContents["Rage"]
     rageContent.yPos = 5
-    
     addHeader(rageContent, "🔥 RAGE FEATURES")
-    
-    addToggle(rageContent, "Rage Teleport (Back-and-Forth)", state.rageTeleport, function(v) 
+    addToggle(rageContent, "Rage Teleport (Back-and-Forth)", state.rageTeleport, function(v)
         state.rageTeleport = v
         if not v then
             if rageTimer then rageTimer:Disconnect(); rageTimer = nil end
@@ -800,20 +722,16 @@ local function createMainUI()
             startRageTeleport()
         end
     end)
-    
     rageTargetBtn, rageTargetList = addDropdown(rageContent, "Rage Target", {"Select Player"}, "Select Player", function(v)
         if v ~= "Select Player" then
             rageTarget = Players:FindFirstChild(v)
-            if state.rageTeleport and rageTarget then
-                startRageTeleport()
-            end
+            if state.rageTeleport and rageTarget then startRageTeleport() end
         else
             rageTarget = nil
         end
     end)
-    
     addHeader(rageContent, "⚡ RAPID FIRE")
-    addToggle(rageContent, "Rapid Fire", state.rapidFire, function(v) 
+    addToggle(rageContent, "Rapid Fire", state.rapidFire, function(v)
         state.rapidFire = v
         if v then
             if rapidFireConnection then rapidFireConnection:Disconnect() end
@@ -829,7 +747,6 @@ local function createMainUI()
         end
     end)
     addSlider(rageContent, "Rapid Fire Rate (s)", 0.01, 0.5, state.rapidFireRate, function(v) state.rapidFireRate = v end)
-    
     addHeader(rageContent, "🗡 RAPID MELEE")
     addToggle(rageContent, "Rapid Melee", state.rapidMelee, function(v)
         state.rapidMelee = v
@@ -847,28 +764,18 @@ local function createMainUI()
         end
     end)
     addSlider(rageContent, "Rapid Melee Rate (s)", 0.02, 0.5, state.rapidMeleeRate, function(v) state.rapidMeleeRate = v end)
-    addTextBox(rageContent, "Melee Key", "Q", function(v)
-        if v and #v == 1 then
-            state.meleeKey = v:upper()
-        end
-    end)
+    addTextBox(rageContent, "Melee Key", "Q", function(v) if v and #v == 1 then state.meleeKey = v:upper() end end)
 
-    -- Update Canvas sizes
     for name, content in pairs(tabContents) do
         content.CanvasSize = UDim2.new(0, 0, 0, (content.yPos or 5) + 50)
     end
 
-    -- ============================================================
-    -- UPDATE PLAYER LISTS FUNCTION
-    -- ============================================================
+    -- UPDATE PLAYER LISTS
     local function updatePlayerLists()
         local players = getPlayers()
         local names = {"Select Player"}
-        for _, p in pairs(players) do
-            table.insert(names, p.Name)
-        end
+        for _, p in pairs(players) do table.insert(names, p.Name) end
         
-        -- Update teleport dropdown
         if teleportList then
             for _, child in pairs(teleportList:GetChildren()) do child:Destroy() end
             teleportList.Size = UDim2.new(0.4, 0, 0, #names * 26)
@@ -889,16 +796,13 @@ local function createMainUI()
                         local target = Players:FindFirstChild(name)
                         if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
                             getChar()
-                            if rootPart then
-                                rootPart.CFrame = target.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
-                            end
+                            if rootPart then rootPart.CFrame = target.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0) end
                         end
                     end
                 end)
             end
         end
         
-        -- Update kill dropdown
         if killList then
             for _, child in pairs(killList:GetChildren()) do child:Destroy() end
             killList.Size = UDim2.new(0.4, 0, 0, #names * 26)
@@ -925,7 +829,6 @@ local function createMainUI()
             end
         end
         
-        -- Update rage target dropdown
         if rageTargetList then
             for _, child in pairs(rageTargetList:GetChildren()) do child:Destroy() end
             rageTargetList.Size = UDim2.new(0.4, 0, 0, #names * 26)
@@ -944,9 +847,7 @@ local function createMainUI()
                     rageTargetList.Visible = false
                     if name ~= "Select Player" then
                         rageTarget = Players:FindFirstChild(name)
-                        if state.rageTeleport and rageTarget then
-                            startRageTeleport()
-                        end
+                        if state.rageTeleport and rageTarget then startRageTeleport() end
                     else
                         rageTarget = nil
                     end
@@ -955,38 +856,20 @@ local function createMainUI()
         end
     end
 
-    -- ============================================================
-    -- MAIN LOOPS
-    -- ============================================================
-    
-    -- ESP update loop
+    -- LOOPS
     RunService.RenderStepped:Connect(updateESP)
-    
-    -- Flight update loop
     RunService.Heartbeat:Connect(updateFlight)
-    
-    -- NoClip update
     RunService.Stepped:Connect(function()
         updateNoClip()
         updateGodMode()
         updateInvisibility()
     end)
-    
-    -- Player list updates
-    Players.PlayerAdded:Connect(function() 
-        task.wait(1) 
-        updatePlayerLists() 
-    end)
-    Players.PlayerRemoved:Connect(function() 
-        task.wait(1) 
-        updatePlayerLists() 
-    end)
-    
-    -- Initial player list population
+
+    Players.PlayerAdded:Connect(function() task.wait(0.5); updatePlayerLists() end)
+    Players.PlayerRemoved:Connect(function() task.wait(0.5); updatePlayerLists() end)
     task.wait(0.5)
     updatePlayerLists()
-    
-    -- Aimbot mouse events
+
     Mouse.Button1Down:Connect(function()
         if state.aimbot then
             local target = findTarget()
@@ -1003,22 +886,14 @@ local function createMainUI()
         end
     end)
 
-    -- ============================================================
-    -- RIGHT SHIFT TOGGLE
-    -- ============================================================
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if gameProcessed then return end
         if input.KeyCode == Enum.KeyCode.RightShift then
             uiVisible = not uiVisible
-            if screenGui then
-                screenGui.Enabled = uiVisible
-            end
+            if screenGui then screenGui.Enabled = uiVisible end
         end
     end)
 
-    -- ============================================================
-    -- CLEANUP
-    -- ============================================================
     LocalPlayer.OnTeleport:Connect(function()
         if screenGui then screenGui:Destroy() end
         if bodyVel then bodyVel:Destroy() end
@@ -1033,7 +908,7 @@ local function createMainUI()
 end
 
 -- ============================================================
--- KEY SYSTEM UI
+-- KEY SYSTEM
 -- ============================================================
 local function createKeySystem()
     local keyGui = Instance.new("ScreenGui")
@@ -1042,7 +917,6 @@ local function createKeySystem()
     keyGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     keyGui.Parent = LocalPlayer.PlayerGui
 
-    -- Background overlay
     local overlay = Instance.new("Frame")
     overlay.Size = UDim2.new(1, 0, 1, 0)
     overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -1050,7 +924,6 @@ local function createKeySystem()
     overlay.BorderSizePixel = 0
     overlay.Parent = keyGui
 
-    -- Key entry frame
     local unlockFrame = Instance.new("Frame")
     unlockFrame.Size = UDim2.new(0, 380, 0, 220)
     unlockFrame.Position = UDim2.new(0.5, -190, 0.5, -110)
@@ -1059,14 +932,12 @@ local function createKeySystem()
     unlockFrame.ClipsDescendants = true
     unlockFrame.Parent = keyGui
 
-    -- Accent line
     local accent = Instance.new("Frame")
     accent.Size = UDim2.new(1, 0, 0, 3)
     accent.BackgroundColor3 = Color3.fromRGB(0, 180, 255)
     accent.BorderSizePixel = 0
     accent.Parent = unlockFrame
 
-    -- Title
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, -40, 0, 40)
     title.Position = UDim2.new(0, 20, 0, 15)
@@ -1078,7 +949,6 @@ local function createKeySystem()
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.Parent = unlockFrame
 
-    -- Subtitle
     local subtitle = Instance.new("TextLabel")
     subtitle.Size = UDim2.new(1, -40, 0, 20)
     subtitle.Position = UDim2.new(0, 20, 0, 55)
@@ -1090,7 +960,6 @@ local function createKeySystem()
     subtitle.TextXAlignment = Enum.TextXAlignment.Left
     subtitle.Parent = unlockFrame
 
-    -- Key input box
     local keyInput = Instance.new("TextBox")
     keyInput.Size = UDim2.new(0.8, 0, 0, 40)
     keyInput.Position = UDim2.new(0.1, 0, 0, 85)
@@ -1103,7 +972,6 @@ local function createKeySystem()
     keyInput.BorderSizePixel = 0
     keyInput.Parent = unlockFrame
 
-    -- Status label
     local statusLabel = Instance.new("TextLabel")
     statusLabel.Size = UDim2.new(1, -40, 0, 20)
     statusLabel.Position = UDim2.new(0, 20, 0, 130)
@@ -1115,7 +983,6 @@ local function createKeySystem()
     statusLabel.TextXAlignment = Enum.TextXAlignment.Center
     statusLabel.Parent = unlockFrame
 
-    -- Unlock button
     local unlockBtn = Instance.new("TextButton")
     unlockBtn.Size = UDim2.new(0.4, 0, 0, 38)
     unlockBtn.Position = UDim2.new(0.3, 0, 0, 158)
@@ -1127,7 +994,6 @@ local function createKeySystem()
     unlockBtn.BorderSizePixel = 0
     unlockBtn.Parent = unlockFrame
 
-    -- Hover effect
     unlockBtn.MouseEnter:Connect(function()
         TweenService:Create(unlockBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(0, 200, 255)}):Play()
     end)
@@ -1135,18 +1001,13 @@ local function createKeySystem()
         TweenService:Create(unlockBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(0, 180, 255)}):Play()
     end)
 
-    -- Enter key support
     keyInput.FocusLost:Connect(function(enterPressed)
-        if enterPressed then
-            unlockBtn.MouseButton1Click:Fire()
-        end
+        if enterPressed then unlockBtn.MouseButton1Click:Fire() end
     end)
 
-    -- Unlock logic
     unlockBtn.MouseButton1Click:Connect(function()
         local entered = keyInput.Text:upper()
         if entered == "UEONTOP" then
-            isUnlocked = true
             statusLabel.Text = "✅ Key accepted! Loading..."
             statusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
             keyInput.Text = ""
@@ -1155,8 +1016,8 @@ local function createKeySystem()
             title.Text = "✅ Unlocked!"
             subtitle.Text = "You now have access to HvH Arena v4.0"
             
-            -- Create main UI and destroy key GUI
-            task.wait(0.5)
+            print("Key accepted! Creating main UI...")
+            task.wait(0.3)
             createMainUI()
             keyGui:Destroy()
         else
@@ -1170,10 +1031,8 @@ local function createKeySystem()
 end
 
 -- ============================================================
--- INITIALIZATION
+-- START
 -- ============================================================
--- Start with key system
-createKeySystem()
-
 print("🔐 HvH Arena v4.0 - Key system active")
 print("📝 Enter key: UEONTOP")
+createKeySystem()
