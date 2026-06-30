@@ -1,51 +1,51 @@
 --[[
-    HvH ARENA v7.0 - COMPLETE REBUILD FROM UNIVERSAL SCRIPT
+    HvH ARENA v8.0 - BASED ON UNIVERSAL SCRIPT
     Key: UEONTOP
-    Features: Aimbot (with Silent Aim), ESP, Fly (adjustable speed), NoClip, 
-    God Mode, Invisibility, WalkSpeed/JumpPower/Health, Teleport/Kill/Respawn,
-    Rage Teleport (Back-and-Forth), Rapid Fire, Rapid Melee
 ]]
 
--- Services
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local Camera = workspace.CurrentCamera
-local Mouse = LocalPlayer:GetMouse()
-local VirtualInputManager = game:GetService("VirtualInputManager")
-local TweenService = game:GetService("TweenService")
-
--- ============================================================
--- VARIABLES (from universal script)
--- ============================================================
-local player = LocalPlayer
-local lockOnRange = 500
+-- Variables (from universal script)
+local player = game.Players.LocalPlayer
+local mouse = player:GetMouse()
+local lockOnRange = 50
+local camera = workspace.CurrentCamera
 local isLockedOn = false
+
+-- ESP Variables
 local espEnabled = true
 local espColor = Color3.new(1, 0, 0)
 local espThickness = 1
 local espTransparency = 0.5
 local espFontSize = 14
 local espFont = Drawing.Fonts.UI
-local shootThroughWallsEnabled = false
+
+-- Shoot Through Walls
+local shootThroughWallsEnabled = true
 local raycastParams = RaycastParams.new()
 raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
 raycastParams.FilterDescendantsInstances = {}
 
+-- Invisibility
 local isInvisible = false
+
+-- Fly
 local isFlying = false
 local flySpeed = 50
 local bodyVelocity = nil
+local userInputService = game:GetService("UserInputService")
+
+-- NoClip
 local isNoClip = false
 local noClipConnection = nil
+
+-- God Mode
 local isGodMode = false
-local espDrawings = {}
+
+-- Silent Aim
 local silentAimEnabled = false
 local aimSmoothness = 0.3
 local aimFOV = 120
 
--- Rage variables
+-- Rage
 local rageTeleportEnabled = false
 local rageTarget = nil
 local rageOriginalPos = nil
@@ -58,11 +58,15 @@ local rapidMeleeRate = 0.1
 local rapidMeleeConnection = nil
 local meleeKey = Enum.KeyCode.Q
 
+-- ESP Drawings
+local espDrawings = {}
+
 -- UI
 local screenGui = nil
 local mainFrame = nil
 local uiVisible = true
 local currentTab = "Main"
+local keyGui = nil
 
 -- ============================================================
 -- HELPERS
@@ -82,7 +86,7 @@ end
 
 local function getPlayers()
     local list = {}
-    for _, p in pairs(Players:GetPlayers()) do
+    for _, p in pairs(game.Players:GetPlayers()) do
         if p ~= player and isPlayerAlive(p.Character) then
             table.insert(list, p)
         end
@@ -93,7 +97,7 @@ end
 local function clamp(v, low, high) return math.min(high, math.max(low, v)) end
 
 -- ============================================================
--- ESP SYSTEM (from universal script)
+-- ESP (from universal script)
 -- ============================================================
 local function createESP(otherPlayer)
     if not otherPlayer.Character then return end
@@ -111,22 +115,19 @@ local function createESP(otherPlayer)
     drawings.box.Color = espColor
     drawings.box.Transparency = espTransparency
     drawings.box.Filled = false
-    
+
     drawings.name = Drawing.new("Text")
     drawings.name.Text = otherPlayer.Name
     drawings.name.Size = espFontSize
     drawings.name.Color = espColor
     drawings.name.Transparency = espTransparency
     drawings.name.Font = espFont
-    drawings.name.Center = true
-    drawings.name.Outline = true
-    drawings.name.OutlineColor = Color3.new(0, 0, 0)
-    
-    drawings.health = Drawing.new("Line")
-    drawings.health.Thickness = 3
-    drawings.health.Color = Color3.new(0, 1, 0)
-    drawings.health.Transparency = 0.5
-    
+
+    drawings.faceLine = Drawing.new("Line")
+    drawings.faceLine.Thickness = espThickness
+    drawings.faceLine.Color = espColor
+    drawings.faceLine.Transparency = espTransparency
+
     espDrawings[otherPlayer] = drawings
 end
 
@@ -137,37 +138,36 @@ local function updateESP()
         end
         return
     end
-    
+
     for otherPlayer, drawings in pairs(espDrawings) do
         if otherPlayer.Character and otherPlayer.Character:FindFirstChild("Head") then
             local head = otherPlayer.Character.Head
-            local headPosition, headVisible = Camera:WorldToViewportPoint(head.Position)
-            
+            local headPosition, headVisible = camera:WorldToViewportPoint(head.Position)
+
             if headVisible and isPlayerAlive(otherPlayer.Character) then
-                local size = Vector2.new(50, 80)
+                local size = Vector2.new(50, 100)
                 drawings.box.PointA = Vector2.new(headPosition.X - size.X / 2, headPosition.Y - size.Y / 2)
                 drawings.box.PointB = Vector2.new(headPosition.X + size.X / 2, headPosition.Y - size.Y / 2)
                 drawings.box.PointC = Vector2.new(headPosition.X + size.X / 2, headPosition.Y + size.Y / 2)
                 drawings.box.PointD = Vector2.new(headPosition.X - size.X / 2, headPosition.Y + size.Y / 2)
                 drawings.box.Visible = true
-                
+
                 drawings.name.Position = Vector2.new(headPosition.X, headPosition.Y - size.Y / 2 - 20)
                 drawings.name.Visible = true
-                
-                local humanoid = otherPlayer.Character:FindFirstChild("Humanoid")
-                if humanoid then
-                    local healthPercent = humanoid.Health / humanoid.MaxHealth
-                    drawings.health.From = Vector2.new(headPosition.X - size.X / 2, headPosition.Y + size.Y / 2 + 5)
-                    drawings.health.To = Vector2.new(headPosition.X - size.X / 2 + size.X * healthPercent, headPosition.Y + size.Y / 2 + 5)
-                    drawings.health.Color = healthPercent > 0.5 and Color3.new(0, 1, 0) or 
-                                             healthPercent > 0.25 and Color3.new(1, 1, 0) or 
-                                             Color3.new(1, 0, 0)
-                    drawings.health.Visible = true
+
+                local faceDirection = head.CFrame.LookVector * 20
+                local faceEndPosition, faceEndVisible = camera:WorldToViewportPoint(head.Position + faceDirection)
+                if faceEndVisible then
+                    drawings.faceLine.From = Vector2.new(headPosition.X, headPosition.Y)
+                    drawings.faceLine.To = Vector2.new(faceEndPosition.X, faceEndPosition.Y)
+                    drawings.faceLine.Visible = true
+                else
+                    drawings.faceLine.Visible = false
                 end
             else
                 drawings.box.Visible = false
                 drawings.name.Visible = false
-                drawings.health.Visible = false
+                drawings.faceLine.Visible = false
             end
         else
             for _, d in pairs(drawings) do d.Visible = false end
@@ -176,21 +176,25 @@ local function updateESP()
 end
 
 -- ============================================================
--- AIMBOT SYSTEM (from universal script)
+-- AIMBOT (from universal script)
 -- ============================================================
 local function findNearestPlayerHead()
     local nearestPlayer = nil
     local nearestAngle = aimFOV
-    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    
-    for _, otherPlayer in pairs(Players:GetPlayers()) do
+    local center = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+    local playerPosition = player.Character and player.Character:FindFirstChild("Head")
+    if not playerPosition then return nil end
+
+    local cameraLookVector = camera.CFrame.LookVector
+
+    for _, otherPlayer in pairs(game.Players:GetPlayers()) do
         if otherPlayer ~= player and otherPlayer.Character then
             local head = otherPlayer.Character:FindFirstChild("Head")
             if head and isPlayerAlive(otherPlayer.Character) then
-                local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
+                local pos, onScreen = camera:WorldToViewportPoint(head.Position)
                 if onScreen then
                     local dist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
-                    local angle = dist / Camera.ViewportSize.X * 180
+                    local angle = dist / camera.ViewportSize.X * 180
                     if angle < nearestAngle then
                         nearestPlayer = head
                         nearestAngle = angle
@@ -199,7 +203,7 @@ local function findNearestPlayerHead()
             end
         end
     end
-    
+
     return nearestPlayer
 end
 
@@ -208,16 +212,16 @@ local function lockOntoNearestPlayer()
     local nearestHead = findNearestPlayerHead()
     if nearestHead then
         if silentAimEnabled then
-            local newCF = CFrame.lookAt(Camera.CFrame.Position, nearestHead.Position)
-            Camera.CFrame = Camera.CFrame:Lerp(newCF, 1 - aimSmoothness)
+            local newCF = CFrame.lookAt(camera.CFrame.Position, nearestHead.Position)
+            camera.CFrame = camera.CFrame:Lerp(newCF, 1 - aimSmoothness)
         else
-            Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, nearestHead.Position)
+            camera.CFrame = CFrame.lookAt(camera.CFrame.Position, nearestHead.Position)
         end
     end
 end
 
 -- ============================================================
--- FLIGHT SYSTEM (from universal script)
+-- FLIGHT (from universal script)
 -- ============================================================
 local function handleFlying()
     if isFlying then
@@ -230,22 +234,22 @@ local function handleFlying()
             end
             
             local direction = Vector3.new(0, 0, 0)
-            if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-                direction = direction + Camera.CFrame.LookVector
+            if userInputService:IsKeyDown(Enum.KeyCode.W) then
+                direction = direction + camera.CFrame.LookVector
             end
-            if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-                direction = direction - Camera.CFrame.LookVector
+            if userInputService:IsKeyDown(Enum.KeyCode.S) then
+                direction = direction - camera.CFrame.LookVector
             end
-            if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-                direction = direction - Camera.CFrame.RightVector
+            if userInputService:IsKeyDown(Enum.KeyCode.A) then
+                direction = direction - camera.CFrame.RightVector
             end
-            if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-                direction = direction + Camera.CFrame.RightVector
+            if userInputService:IsKeyDown(Enum.KeyCode.D) then
+                direction = direction + camera.CFrame.RightVector
             end
-            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            if userInputService:IsKeyDown(Enum.KeyCode.Space) then
                 direction = direction + Vector3.new(0, 1, 0)
             end
-            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+            if userInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
                 direction = direction - Vector3.new(0, 1, 0)
             end
             
@@ -279,7 +283,7 @@ local function startRageTeleport()
     rageOriginalPos = rootPart.Position
     local toggle = false
     
-    rageTimer = RunService.Heartbeat:Connect(function()
+    rageTimer = game:GetService("RunService").Heartbeat:Connect(function()
         if not rageTeleportEnabled or not rageTarget or not rageTarget.Character then
             rageTimer:Disconnect()
             rageTimer = nil
@@ -302,7 +306,7 @@ local function startRageTeleport()
 end
 
 -- ============================================================
--- UI CREATION - CLEAN DEVELOPER UI
+-- UI CREATION (using universal script style)
 -- ============================================================
 local function createMainUI()
     screenGui = Instance.new("ScreenGui")
@@ -314,50 +318,50 @@ local function createMainUI()
     mainFrame = Instance.new("Frame")
     mainFrame.Size = UDim2.new(0, 400, 0, 550)
     mainFrame.Position = UDim2.new(0.5, -200, 0.5, -275)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+    mainFrame.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
+    mainFrame.BackgroundTransparency = 0.2
     mainFrame.BorderSizePixel = 0
-    mainFrame.ClipsDescendants = true
     mainFrame.Active = true
     mainFrame.Draggable = true
     mainFrame.Parent = screenGui
 
-    -- Title Bar
-    local titleBar = Instance.new("Frame")
-    titleBar.Size = UDim2.new(1, 0, 0, 36)
-    titleBar.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
-    titleBar.BorderSizePixel = 0
-    titleBar.Parent = mainFrame
+    -- Header
+    local header = Instance.new("Frame")
+    header.Size = UDim2.new(1, 0, 0, 30)
+    header.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+    header.BorderSizePixel = 0
+    header.Parent = mainFrame
 
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Size = UDim2.new(1, -50, 1, 0)
-    titleLabel.Position = UDim2.new(0, 12, 0, 0)
-    titleLabel.Text = "◆ HvH Arena v7.0"
-    titleLabel.TextColor3 = Color3.fromRGB(230, 230, 255)
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextSize = 15
-    titleLabel.Parent = titleBar
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -20, 1, 0)
+    title.Position = UDim2.new(0, 10, 0, 0)
+    title.Text = "HvH Arena v8.0"
+    title.TextColor3 = Color3.new(1, 1, 1)
+    title.BackgroundTransparency = 1
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Font = Enum.Font.SourceSansBold
+    title.TextSize = 16
+    title.Parent = header
 
-    local closeBtn = Instance.new("TextButton")
-    closeBtn.Size = UDim2.new(0, 26, 0, 26)
-    closeBtn.Position = UDim2.new(1, -34, 0.5, -13)
-    closeBtn.Text = "✕"
-    closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    closeBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
-    closeBtn.BorderSizePixel = 0
-    closeBtn.Font = Enum.Font.GothamBold
-    closeBtn.TextSize = 14
-    closeBtn.Parent = titleBar
-    closeBtn.MouseButton1Click:Connect(function()
+    local closeButton = Instance.new("TextButton")
+    closeButton.Size = UDim2.new(0, 20, 0, 20)
+    closeButton.Position = UDim2.new(1, -25, 0.5, -10)
+    closeButton.Text = "X"
+    closeButton.TextColor3 = Color3.new(1, 1, 1)
+    closeButton.BackgroundColor3 = Color3.new(0.5, 0, 0)
+    closeButton.BorderSizePixel = 0
+    closeButton.Font = Enum.Font.SourceSansBold
+    closeButton.TextSize = 14
+    closeButton.Parent = header
+    closeButton.MouseButton1Click:Connect(function()
         screenGui:Destroy()
     end)
 
     -- Tab Bar
     local tabBar = Instance.new("Frame")
-    tabBar.Size = UDim2.new(1, 0, 0, 32)
-    tabBar.Position = UDim2.new(0, 0, 0, 36)
-    tabBar.BackgroundColor3 = Color3.fromRGB(24, 24, 34)
+    tabBar.Size = UDim2.new(1, 0, 0, 30)
+    tabBar.Position = UDim2.new(0, 0, 0, 30)
+    tabBar.BackgroundColor3 = Color3.new(0.15, 0.15, 0.15)
     tabBar.BorderSizePixel = 0
     tabBar.Parent = mainFrame
 
@@ -371,20 +375,20 @@ local function createMainUI()
         btn.Size = UDim2.new(0, 80, 1, 0)
         btn.Position = UDim2.new(0, (i-1) * 80, 0, 0)
         btn.Text = tabName:upper()
-        btn.TextColor3 = Color3.fromRGB(180, 180, 210)
-        btn.BackgroundColor3 = Color3.fromRGB(24, 24, 34)
+        btn.TextColor3 = (i == 1) and Color3.new(1, 1, 1) or Color3.new(0.7, 0.7, 0.7)
+        btn.BackgroundColor3 = (i == 1) and Color3.new(0.3, 0.3, 0.3) or Color3.new(0.15, 0.15, 0.15)
         btn.BorderSizePixel = 0
-        btn.Font = Enum.Font.GothamBold
-        btn.TextSize = 11
+        btn.Font = Enum.Font.SourceSansBold
+        btn.TextSize = 12
         btn.Parent = tabBar
         tabButtons[tabName] = btn
 
         local scroll = Instance.new("ScrollingFrame")
-        scroll.Size = UDim2.new(1, -10, 1, -78)
-        scroll.Position = UDim2.new(0, 5, 0, 72)
+        scroll.Size = UDim2.new(1, -10, 1, -75)
+        scroll.Position = UDim2.new(0, 5, 0, 65)
         scroll.BackgroundTransparency = 1
-        scroll.BorderSizePixel = 0
         scroll.ScrollBarThickness = 5
+        scroll.CanvasSize = UDim2.new(0, 0, 0, 10)
         scroll.Visible = (i == 1)
         scroll.Parent = mainFrame
         
@@ -392,8 +396,6 @@ local function createMainUI()
         container.Size = UDim2.new(1, 0, 0, 10)
         container.BackgroundTransparency = 1
         container.Parent = scroll
-        
-        scroll.CanvasSize = UDim2.new(0, 0, 0, 10)
         
         tabScrolls[tabName] = scroll
         tabContainers[tabName] = {
@@ -407,8 +409,8 @@ local function createMainUI()
         currentTab = tabName
         for name, scroll in pairs(tabScrolls) do
             scroll.Visible = (name == tabName)
-            tabButtons[name].BackgroundColor3 = (name == tabName) and Color3.fromRGB(40, 40, 55) or Color3.fromRGB(24, 24, 34)
-            tabButtons[name].TextColor3 = (name == tabName) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(180, 180, 210)
+            tabButtons[name].BackgroundColor3 = (name == tabName) and Color3.new(0.3, 0.3, 0.3) or Color3.new(0.15, 0.15, 0.15)
+            tabButtons[name].TextColor3 = (name == tabName) and Color3.new(1, 1, 1) or Color3.new(0.7, 0.7, 0.7)
         end
     end
 
@@ -422,11 +424,11 @@ local function createMainUI()
         h.Size = UDim2.new(1, -10, 0, 22)
         h.Position = UDim2.new(0, 5, 0, tabData.yPos)
         h.Text = text
-        h.TextColor3 = Color3.fromRGB(200, 200, 230)
+        h.TextColor3 = Color3.new(1, 1, 1)
         h.BackgroundTransparency = 1
         h.TextXAlignment = Enum.TextXAlignment.Left
-        h.Font = Enum.Font.GothamBold
-        h.TextSize = 13
+        h.Font = Enum.Font.SourceSansBold
+        h.TextSize = 14
         h.Parent = tabData.container
         tabData.yPos = tabData.yPos + 26
         tabData.container.Size = UDim2.new(1, 0, 0, tabData.yPos + 10)
@@ -436,7 +438,7 @@ local function createMainUI()
 
     local function addToggle(tabData, labelText, defaultState, callback)
         local container = Instance.new("Frame")
-        container.Size = UDim2.new(1, -10, 0, 28)
+        container.Size = UDim2.new(1, -10, 0, 30)
         container.Position = UDim2.new(0, 5, 0, tabData.yPos)
         container.BackgroundTransparency = 1
         container.Parent = tabData.container
@@ -444,21 +446,21 @@ local function createMainUI()
         local lbl = Instance.new("TextLabel")
         lbl.Size = UDim2.new(0.55, 0, 1, 0)
         lbl.Text = labelText
-        lbl.TextColor3 = Color3.fromRGB(230, 230, 245)
+        lbl.TextColor3 = Color3.new(1, 1, 1)
         lbl.BackgroundTransparency = 1
         lbl.TextXAlignment = Enum.TextXAlignment.Left
-        lbl.Font = Enum.Font.Gotham
-        lbl.TextSize = 12
+        lbl.Font = Enum.Font.SourceSans
+        lbl.TextSize = 13
         lbl.Parent = container
 
         local btn = Instance.new("TextButton")
         btn.Size = UDim2.new(0.25, 0, 0.7, 0)
         btn.Position = UDim2.new(0.7, 0, 0.15, 0)
-        btn.BackgroundColor3 = defaultState and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(140, 40, 40)
+        btn.BackgroundColor3 = defaultState and Color3.new(0, 0.7, 0.3) or Color3.new(0.5, 0, 0)
         btn.Text = defaultState and "ON" or "OFF"
-        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        btn.Font = Enum.Font.GothamBold
-        btn.TextSize = 11
+        btn.TextColor3 = Color3.new(1, 1, 1)
+        btn.Font = Enum.Font.SourceSansBold
+        btn.TextSize = 12
         btn.BorderSizePixel = 0
         btn.Parent = container
 
@@ -466,11 +468,11 @@ local function createMainUI()
         btn.MouseButton1Click:Connect(function()
             state = not state
             btn.Text = state and "ON" or "OFF"
-            btn.BackgroundColor3 = state and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(140, 40, 40)
+            btn.BackgroundColor3 = state and Color3.new(0, 0.7, 0.3) or Color3.new(0.5, 0, 0)
             callback(state)
         end)
 
-        tabData.yPos = tabData.yPos + 32
+        tabData.yPos = tabData.yPos + 34
         tabData.container.Size = UDim2.new(1, 0, 0, tabData.yPos + 10)
         tabData.scroll.CanvasSize = UDim2.new(0, 0, 0, tabData.yPos + 20)
         return btn
@@ -486,33 +488,33 @@ local function createMainUI()
         local lbl = Instance.new("TextLabel")
         lbl.Size = UDim2.new(0.5, 0, 0.5, 0)
         lbl.Text = labelText
-        lbl.TextColor3 = Color3.fromRGB(230, 230, 245)
+        lbl.TextColor3 = Color3.new(1, 1, 1)
         lbl.BackgroundTransparency = 1
         lbl.TextXAlignment = Enum.TextXAlignment.Left
-        lbl.Font = Enum.Font.Gotham
-        lbl.TextSize = 12
+        lbl.Font = Enum.Font.SourceSans
+        lbl.TextSize = 13
         lbl.Parent = container
 
         local valueLabel = Instance.new("TextLabel")
         valueLabel.Size = UDim2.new(0.15, 0, 0.5, 0)
         valueLabel.Position = UDim2.new(0.85, 0, 0, 0)
         valueLabel.Text = tostring(defaultVal)
-        valueLabel.TextColor3 = Color3.fromRGB(0, 180, 255)
+        valueLabel.TextColor3 = Color3.new(0, 0.7, 1)
         valueLabel.BackgroundTransparency = 1
-        valueLabel.Font = Enum.Font.GothamBold
-        valueLabel.TextSize = 12
+        valueLabel.Font = Enum.Font.SourceSansBold
+        valueLabel.TextSize = 13
         valueLabel.Parent = container
 
         local track = Instance.new("Frame")
-        track.Size = UDim2.new(0.7, 0, 0.22, 0)
+        track.Size = UDim2.new(0.7, 0, 0.2, 0)
         track.Position = UDim2.new(0, 0, 0.6, 0)
-        track.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+        track.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
         track.BorderSizePixel = 0
         track.Parent = container
 
         local fill = Instance.new("Frame")
         fill.Size = UDim2.new((defaultVal - minVal) / (maxVal - minVal), 0, 1, 0)
-        fill.BackgroundColor3 = Color3.fromRGB(0, 180, 255)
+        fill.BackgroundColor3 = Color3.new(0, 0.7, 1)
         fill.BorderSizePixel = 0
         fill.Parent = track
 
@@ -537,7 +539,7 @@ local function createMainUI()
                 dragging = false
             end
         end)
-        UserInputService.InputChanged:Connect(function(input)
+        userInputService.InputChanged:Connect(function(input)
             if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
                 updateSlider(input.Position.X)
             end
@@ -559,21 +561,21 @@ local function createMainUI()
         local lbl = Instance.new("TextLabel")
         lbl.Size = UDim2.new(0.4, 0, 1, 0)
         lbl.Text = labelText
-        lbl.TextColor3 = Color3.fromRGB(230, 230, 245)
+        lbl.TextColor3 = Color3.new(1, 1, 1)
         lbl.BackgroundTransparency = 1
         lbl.TextXAlignment = Enum.TextXAlignment.Left
-        lbl.Font = Enum.Font.Gotham
-        lbl.TextSize = 12
+        lbl.Font = Enum.Font.SourceSans
+        lbl.TextSize = 13
         lbl.Parent = container
 
         local btn = Instance.new("TextButton")
         btn.Size = UDim2.new(0.4, 0, 0.8, 0)
         btn.Position = UDim2.new(0.55, 0, 0.1, 0)
-        btn.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+        btn.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
         btn.Text = default
-        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        btn.Font = Enum.Font.Gotham
-        btn.TextSize = 11
+        btn.TextColor3 = Color3.new(1, 1, 1)
+        btn.Font = Enum.Font.SourceSans
+        btn.TextSize = 12
         btn.BorderSizePixel = 0
         btn.Parent = container
 
@@ -581,7 +583,7 @@ local function createMainUI()
         local list = Instance.new("Frame")
         list.Size = UDim2.new(0.4, 0, 0, #options * 24)
         list.Position = UDim2.new(0.55, 0, 1, 0)
-        list.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+        list.BackgroundColor3 = Color3.new(0.15, 0.15, 0.15)
         list.BorderSizePixel = 0
         list.Visible = false
         list.ZIndex = 10
@@ -590,11 +592,11 @@ local function createMainUI()
         for _, opt in ipairs(options) do
             local optBtn = Instance.new("TextButton")
             optBtn.Size = UDim2.new(1, 0, 0, 24)
-            optBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 58)
+            optBtn.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
             optBtn.Text = opt
-            optBtn.TextColor3 = Color3.fromRGB(220, 220, 250)
-            optBtn.Font = Enum.Font.Gotham
-            optBtn.TextSize = 11
+            optBtn.TextColor3 = Color3.new(1, 1, 1)
+            optBtn.Font = Enum.Font.SourceSans
+            optBtn.TextSize = 12
             optBtn.BorderSizePixel = 0
             optBtn.Parent = list
             optBtn.MouseButton1Click:Connect(function()
@@ -625,20 +627,20 @@ local function createMainUI()
         local lbl = Instance.new("TextLabel")
         lbl.Size = UDim2.new(0.3, 0, 1, 0)
         lbl.Text = labelText
-        lbl.TextColor3 = Color3.fromRGB(230, 230, 245)
+        lbl.TextColor3 = Color3.new(1, 1, 1)
         lbl.BackgroundTransparency = 1
         lbl.TextXAlignment = Enum.TextXAlignment.Left
-        lbl.Font = Enum.Font.Gotham
-        lbl.TextSize = 12
+        lbl.Font = Enum.Font.SourceSans
+        lbl.TextSize = 13
         lbl.Parent = container
 
         local box = Instance.new("TextBox")
         box.Size = UDim2.new(0.5, 0, 0.8, 0)
         box.Position = UDim2.new(0.35, 0, 0.1, 0)
-        box.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-        box.TextColor3 = Color3.fromRGB(255, 255, 255)
+        box.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+        box.TextColor3 = Color3.new(1, 1, 1)
         box.PlaceholderText = placeholder
-        box.Font = Enum.Font.Gotham
+        box.Font = Enum.Font.SourceSans
         box.TextSize = 12
         box.BorderSizePixel = 0
         box.Parent = container
@@ -654,25 +656,30 @@ local function createMainUI()
     end
 
     -- ============================================================
+    -- RAGE TARGET DROPDOWN REF
+    -- ============================================================
+    local rageTargetBtn, rageTargetList
+
+    -- ============================================================
     -- POPULATE TABS
     -- ============================================================
     
     -- MAIN TAB
     local mainData = tabContainers["Main"]
-    addHeader(mainData, "⚙ CONFIGURATION")
+    addHeader(mainData, "CONFIGURATION")
     addToggle(mainData, "ESP", espEnabled, function(v) espEnabled = v end)
     addToggle(mainData, "Aimbot", isLockedOn, function(v) isLockedOn = v end)
     addToggle(mainData, "Silent Aim", silentAimEnabled, function(v) silentAimEnabled = v end)
-    addToggle(mainData, "Wall Hack", shootThroughWallsEnabled, function(v) shootThroughWallsEnabled = v end)
-    addHeader(mainData, "🎯 AIMBOT SETTINGS")
+    addToggle(mainData, "Wall Hacks", shootThroughWallsEnabled, function(v) shootThroughWallsEnabled = v end)
+    addHeader(mainData, "AIMBOT SETTINGS")
     addSlider(mainData, "FOV", 10, 180, aimFOV, function(v) aimFOV = v end)
     addSlider(mainData, "Smoothness", 0, 1, aimSmoothness, function(v) aimSmoothness = v end)
-    addSlider(mainData, "Range", 100, 1000, lockOnRange, function(v) lockOnRange = v end)
+    addSlider(mainData, "Range", 10, 500, lockOnRange, function(v) lockOnRange = v end)
 
     -- COMBAT TAB
     local combatData = tabContainers["Combat"]
-    addHeader(combatData, "⚔ COMBAT")
-    addToggle(combatData, "God Mode", isGodMode, function(v) 
+    addHeader(combatData, "COMBAT")
+    addToggle(combatData, "God Mode", isGodMode, function(v)
         isGodMode = v
         local char, humanoid = getChar()
         if humanoid then
@@ -697,37 +704,37 @@ local function createMainUI()
             end
         end
     end)
-    addHeader(combatData, "📊 STATS")
-    addTextBox(combatData, "WalkSpeed", "Enter speed", function(v)
+    addHeader(combatData, "STATS")
+    addTextBox(combatData, "WalkSpeed", "Enter WalkSpeed", function(v)
         local val = tonumber(v)
         if val then
             local char, humanoid = getChar()
             if humanoid then humanoid.WalkSpeed = val end
         end
     end)
-    addTextBox(combatData, "JumpPower", "Enter jump power", function(v)
+    addTextBox(combatData, "JumpPower", "Enter JumpPower", function(v)
         local val = tonumber(v)
         if val then
             local char, humanoid = getChar()
             if humanoid then humanoid.JumpPower = val end
         end
     end)
-    addTextBox(combatData, "Health", "Enter max health", function(v)
+    addTextBox(combatData, "Health", "Enter Health", function(v)
         local val = tonumber(v)
         if val then
             local char, humanoid = getChar()
             if humanoid then humanoid.MaxHealth = val; humanoid.Health = val end
         end
     end)
-    addHeader(combatData, "👥 PLAYER ACTIONS")
+    addHeader(combatData, "PLAYER ACTIONS")
     addToggle(combatData, "Respawn", false, function(v)
         if v then player:LoadCharacter() end
     end)
 
     -- MOVEMENT TAB
     local movementData = tabContainers["Movement"]
-    addHeader(movementData, "🚀 FLIGHT")
-    addToggle(movementData, "Fly", isFlying, function(v) 
+    addHeader(movementData, "FLIGHT")
+    addToggle(movementData, "Fly", isFlying, function(v)
         isFlying = v
         if not v and bodyVelocity then
             bodyVelocity:Destroy()
@@ -735,12 +742,12 @@ local function createMainUI()
         end
     end)
     addSlider(movementData, "Fly Speed", 10, 200, flySpeed, function(v) flySpeed = v end)
-    addHeader(movementData, "🔄 MOVEMENT")
+    addHeader(movementData, "MOVEMENT")
     addToggle(movementData, "NoClip", isNoClip, function(v)
         isNoClip = v
         if v then
             if not noClipConnection then
-                noClipConnection = RunService.Stepped:Connect(function()
+                noClipConnection = game:GetService("RunService").Stepped:Connect(function()
                     local char = player.Character
                     if char then
                         for _, part in pairs(char:GetDescendants()) do
@@ -769,10 +776,10 @@ local function createMainUI()
 
     -- VISUALS TAB
     local visualsData = tabContainers["Visuals"]
-    addHeader(visualsData, "🎨 ESP SETTINGS")
+    addHeader(visualsData, "ESP SETTINGS")
     addToggle(visualsData, "ESP Enabled", espEnabled, function(v) espEnabled = v end)
     addSlider(visualsData, "ESP Thickness", 1, 5, espThickness, function(v) espThickness = v end)
-    addHeader(visualsData, "🎯 ESP COLOR")
+    addHeader(visualsData, "ESP COLOR")
     local colorPresets = {"Red", "Green", "Blue", "Yellow", "Purple", "Orange", "Cyan", "White"}
     local colorValues = {
         Red = Color3.new(1, 0, 0),
@@ -807,8 +814,8 @@ local function createMainUI()
 
     -- RAGE TAB
     local rageData = tabContainers["Rage"]
-    addHeader(rageData, "🔥 RAGE FEATURES")
-    addToggle(rageData, "Rage Teleport (Back-and-Forth)", rageTeleportEnabled, function(v)
+    addHeader(rageData, "RAGE FEATURES")
+    addToggle(rageData, "Rage Teleport", rageTeleportEnabled, function(v)
         rageTeleportEnabled = v
         if not v then
             if rageTimer then rageTimer:Disconnect(); rageTimer = nil end
@@ -819,22 +826,23 @@ local function createMainUI()
         end
     end)
     
-    local rageTargetBtn, rageTargetList = addDropdown(rageData, "Rage Target", {"Select Player"}, "Select Player", function(v)
+    rageTargetBtn, rageTargetList = addDropdown(rageData, "Rage Target", {"Select Player"}, "Select Player", function(v)
         if v ~= "Select Player" then
-            rageTarget = Players:FindFirstChild(v)
+            rageTarget = game.Players:FindFirstChild(v)
             if rageTeleportEnabled and rageTarget then startRageTeleport() end
         else
             rageTarget = nil
         end
     end)
     
-    addHeader(rageData, "⚡ RAPID FIRE")
+    addHeader(rageData, "RAPID FIRE")
     addToggle(rageData, "Rapid Fire", rapidFireEnabled, function(v)
         rapidFireEnabled = v
         if v then
             if rapidFireConnection then rapidFireConnection:Disconnect() end
-            rapidFireConnection = RunService.Heartbeat:Connect(function()
-                if rapidFireEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+            rapidFireConnection = game:GetService("RunService").Heartbeat:Connect(function()
+                if rapidFireEnabled and userInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+                    local VirtualInputManager = game:GetService("VirtualInputManager")
                     VirtualInputManager:SendMouseButtonEvent(Vector2.new(0, 0), 0, true, false, 0)
                     task.wait(rapidFireRate)
                     VirtualInputManager:SendMouseButtonEvent(Vector2.new(0, 0), 0, false, false, 0)
@@ -844,15 +852,16 @@ local function createMainUI()
             if rapidFireConnection then rapidFireConnection:Disconnect(); rapidFireConnection = nil end
         end
     end)
-    addSlider(rageData, "Rapid Fire Rate (s)", 0.01, 0.5, rapidFireRate, function(v) rapidFireRate = v end)
+    addSlider(rageData, "Rapid Fire Rate", 0.01, 0.5, rapidFireRate, function(v) rapidFireRate = v end)
     
-    addHeader(rageData, "🗡 RAPID MELEE")
+    addHeader(rageData, "RAPID MELEE")
     addToggle(rageData, "Rapid Melee", rapidMeleeEnabled, function(v)
         rapidMeleeEnabled = v
         if v then
             if rapidMeleeConnection then rapidMeleeConnection:Disconnect() end
-            rapidMeleeConnection = RunService.Heartbeat:Connect(function()
-                if rapidMeleeEnabled and UserInputService:IsKeyDown(meleeKey) then
+            rapidMeleeConnection = game:GetService("RunService").Heartbeat:Connect(function()
+                if rapidMeleeEnabled and userInputService:IsKeyDown(meleeKey) then
+                    local VirtualInputManager = game:GetService("VirtualInputManager")
                     VirtualInputManager:SendKeyEvent(true, meleeKey, false, false, 0)
                     task.wait(rapidMeleeRate)
                     VirtualInputManager:SendKeyEvent(false, meleeKey, false, false, 0)
@@ -862,7 +871,7 @@ local function createMainUI()
             if rapidMeleeConnection then rapidMeleeConnection:Disconnect(); rapidMeleeConnection = nil end
         end
     end)
-    addSlider(rageData, "Rapid Melee Rate (s)", 0.02, 0.5, rapidMeleeRate, function(v) rapidMeleeRate = v end)
+    addSlider(rageData, "Rapid Melee Rate", 0.02, 0.5, rapidMeleeRate, function(v) rapidMeleeRate = v end)
     addTextBox(rageData, "Melee Key", "Q", function(v)
         if v and #v == 1 then
             meleeKey = Enum.KeyCode[v:upper()]
@@ -883,18 +892,18 @@ local function createMainUI()
             for _, name in pairs(names) do
                 local btn = Instance.new("TextButton")
                 btn.Size = UDim2.new(1, 0, 0, 24)
-                btn.BackgroundColor3 = Color3.fromRGB(45, 45, 58)
+                btn.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
                 btn.Text = name
-                btn.TextColor3 = Color3.fromRGB(220, 220, 250)
-                btn.Font = Enum.Font.Gotham
-                btn.TextSize = 11
+                btn.TextColor3 = Color3.new(1, 1, 1)
+                btn.Font = Enum.Font.SourceSans
+                btn.TextSize = 12
                 btn.BorderSizePixel = 0
                 btn.Parent = rageTargetList
                 btn.MouseButton1Click:Connect(function()
                     rageTargetBtn.Text = name
                     rageTargetList.Visible = false
                     if name ~= "Select Player" then
-                        rageTarget = Players:FindFirstChild(name)
+                        rageTarget = game.Players:FindFirstChild(name)
                         if rageTeleportEnabled and rageTarget then startRageTeleport() end
                     else
                         rageTarget = nil
@@ -905,48 +914,49 @@ local function createMainUI()
     end
 
     -- ============================================================
-    -- LOOPS & EVENTS
+    -- INITIALIZE ESP
     -- ============================================================
-    
-    -- ESP Update
-    RunService.RenderStepped:Connect(updateESP)
-    
-    -- Flight Update
-    RunService.Heartbeat:Connect(handleFlying)
-    
-    -- Player list updates
-    Players.PlayerAdded:Connect(function() task.wait(0.5); updatePlayerLists() end)
-    Players.PlayerRemoved:Connect(function() task.wait(0.5); updatePlayerLists() end)
-    task.wait(0.5)
-    updatePlayerLists()
-    
-    -- Initialize ESP for existing players
-    for _, otherPlayer in pairs(Players:GetPlayers()) do
+    for _, otherPlayer in pairs(game.Players:GetPlayers()) do
         if otherPlayer ~= player then
             createESP(otherPlayer)
         end
     end
-    
-    -- New player ESP
-    Players.PlayerAdded:Connect(function(newPlayer)
+
+    game.Players.PlayerAdded:Connect(function(newPlayer)
         if newPlayer ~= player then
             task.wait(0.5)
             createESP(newPlayer)
         end
     end)
 
-    -- Aimbot - Mouse events
-    Mouse.Button1Down:Connect(function()
+    -- ============================================================
+    -- LOOPS & EVENTS (from universal script)
+    -- ============================================================
+    
+    -- ESP Update
+    game:GetService("RunService").RenderStepped:Connect(updateESP)
+    
+    -- Flight Update
+    game:GetService("RunService").RenderStepped:Connect(handleFlying)
+    
+    -- Player list updates
+    game.Players.PlayerAdded:Connect(function() task.wait(0.5); updatePlayerLists() end)
+    game.Players.PlayerRemoved:Connect(function() task.wait(0.5); updatePlayerLists() end)
+    task.wait(0.5)
+    updatePlayerLists()
+
+    -- Aimbot (from universal script)
+    mouse.Button1Down:Connect(function()
         isLockedOn = true
         lockOntoNearestPlayer()
     end)
-    
-    Mouse.Button1Up:Connect(function()
+
+    mouse.Button1Up:Connect(function()
         isLockedOn = false
     end)
-    
-    -- Continuous aimbot while held
-    RunService.RenderStepped:Connect(function()
+
+    -- Continuous aimbot
+    game:GetService("RunService").RenderStepped:Connect(function()
         if isLockedOn then
             lockOntoNearestPlayer()
         end
@@ -955,7 +965,7 @@ local function createMainUI()
     -- ============================================================
     -- RIGHT SHIFT TOGGLE
     -- ============================================================
-    UserInputService.InputBegan:Connect(function(input)
+    userInputService.InputBegan:Connect(function(input, gameProcessed)
         if input.KeyCode == Enum.KeyCode.RightShift then
             uiVisible = not uiVisible
             if screenGui then
@@ -967,7 +977,7 @@ local function createMainUI()
     -- ============================================================
     -- CLEANUP
     -- ============================================================
-    LocalPlayer.OnTeleport:Connect(function()
+    player.OnTeleport:Connect(function()
         if screenGui then screenGui:Destroy() end
         if bodyVelocity then bodyVelocity:Destroy() end
         if noClipConnection then noClipConnection:Disconnect() end
@@ -980,7 +990,7 @@ local function createMainUI()
         espDrawings = {}
     end)
 
-    print("✅ HvH Arena v7.0 loaded!")
+    print("✅ HvH Arena v8.0 loaded!")
     print("🔑 Press RightShift to toggle UI")
 end
 
@@ -988,7 +998,7 @@ end
 -- KEY SYSTEM
 -- ============================================================
 local function createKeySystem()
-    local keyGui = Instance.new("ScreenGui")
+    keyGui = Instance.new("ScreenGui")
     keyGui.Name = "KeySystem"
     keyGui.ResetOnSpawn = false
     keyGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -996,7 +1006,7 @@ local function createKeySystem()
 
     local overlay = Instance.new("Frame")
     overlay.Size = UDim2.new(1, 0, 1, 0)
-    overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    overlay.BackgroundColor3 = Color3.new(0, 0, 0)
     overlay.BackgroundTransparency = 0.7
     overlay.BorderSizePixel = 0
     overlay.Parent = keyGui
@@ -1004,14 +1014,14 @@ local function createKeySystem()
     local unlockFrame = Instance.new("Frame")
     unlockFrame.Size = UDim2.new(0, 360, 0, 200)
     unlockFrame.Position = UDim2.new(0.5, -180, 0.5, -100)
-    unlockFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 26)
+    unlockFrame.BackgroundColor3 = Color3.new(0.07, 0.07, 0.1)
     unlockFrame.BorderSizePixel = 0
     unlockFrame.ClipsDescendants = true
     unlockFrame.Parent = keyGui
 
     local accent = Instance.new("Frame")
     accent.Size = UDim2.new(1, 0, 0, 3)
-    accent.BackgroundColor3 = Color3.fromRGB(0, 180, 255)
+    accent.BackgroundColor3 = Color3.new(0, 0.7, 1)
     accent.BorderSizePixel = 0
     accent.Parent = unlockFrame
 
@@ -1019,9 +1029,9 @@ local function createKeySystem()
     title.Size = UDim2.new(1, -40, 0, 36)
     title.Position = UDim2.new(0, 20, 0, 12)
     title.Text = "🔐 Enter License Key"
-    title.TextColor3 = Color3.fromRGB(230, 230, 255)
+    title.TextColor3 = Color3.new(1, 1, 1)
     title.BackgroundTransparency = 1
-    title.Font = Enum.Font.GothamBold
+    title.Font = Enum.Font.SourceSansBold
     title.TextSize = 18
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.Parent = unlockFrame
@@ -1030,9 +1040,9 @@ local function createKeySystem()
     subtitle.Size = UDim2.new(1, -40, 0, 18)
     subtitle.Position = UDim2.new(0, 20, 0, 48)
     subtitle.Text = "Enter the activation key to access HvH Arena"
-    subtitle.TextColor3 = Color3.fromRGB(150, 150, 180)
+    subtitle.TextColor3 = Color3.new(0.6, 0.6, 0.7)
     subtitle.BackgroundTransparency = 1
-    subtitle.Font = Enum.Font.Gotham
+    subtitle.Font = Enum.Font.SourceSans
     subtitle.TextSize = 12
     subtitle.TextXAlignment = Enum.TextXAlignment.Left
     subtitle.Parent = unlockFrame
@@ -1040,11 +1050,11 @@ local function createKeySystem()
     local keyInput = Instance.new("TextBox")
     keyInput.Size = UDim2.new(0.8, 0, 0, 36)
     keyInput.Position = UDim2.new(0.1, 0, 0, 76)
-    keyInput.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
-    keyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+    keyInput.BackgroundColor3 = Color3.new(0.15, 0.15, 0.2)
+    keyInput.TextColor3 = Color3.new(1, 1, 1)
     keyInput.PlaceholderText = "Enter key..."
-    keyInput.PlaceholderColor3 = Color3.fromRGB(120, 120, 150)
-    keyInput.Font = Enum.Font.Gotham
+    keyInput.PlaceholderColor3 = Color3.new(0.5, 0.5, 0.6)
+    keyInput.Font = Enum.Font.SourceSans
     keyInput.TextSize = 15
     keyInput.BorderSizePixel = 0
     keyInput.Parent = unlockFrame
@@ -1053,9 +1063,9 @@ local function createKeySystem()
     statusLabel.Size = UDim2.new(1, -40, 0, 18)
     statusLabel.Position = UDim2.new(0, 20, 0, 118)
     statusLabel.Text = ""
-    statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+    statusLabel.TextColor3 = Color3.new(1, 0.4, 0.4)
     statusLabel.BackgroundTransparency = 1
-    statusLabel.Font = Enum.Font.Gotham
+    statusLabel.Font = Enum.Font.SourceSans
     statusLabel.TextSize = 12
     statusLabel.TextXAlignment = Enum.TextXAlignment.Center
     statusLabel.Parent = unlockFrame
@@ -1063,10 +1073,10 @@ local function createKeySystem()
     local unlockBtn = Instance.new("TextButton")
     unlockBtn.Size = UDim2.new(0.4, 0, 0, 34)
     unlockBtn.Position = UDim2.new(0.3, 0, 0, 145)
-    unlockBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 255)
+    unlockBtn.BackgroundColor3 = Color3.new(0, 0.7, 1)
     unlockBtn.Text = "UNLOCK"
-    unlockBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    unlockBtn.Font = Enum.Font.GothamBold
+    unlockBtn.TextColor3 = Color3.new(1, 1, 1)
+    unlockBtn.Font = Enum.Font.SourceSansBold
     unlockBtn.TextSize = 15
     unlockBtn.BorderSizePixel = 0
     unlockBtn.Parent = unlockFrame
@@ -1079,22 +1089,23 @@ local function createKeySystem()
         local entered = keyInput.Text:upper()
         if entered == "UEONTOP" then
             statusLabel.Text = "✅ Key accepted! Loading..."
-            statusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
+            statusLabel.TextColor3 = Color3.new(0, 1, 0.4)
             
             keyInput.Visible = false
             unlockBtn.Visible = false
             title.Text = "✅ Unlocked!"
-            subtitle.Text = "You now have access to HvH Arena v7.0"
+            subtitle.Text = "You now have access to HvH Arena v8.0"
             
             print("Key accepted! Creating main UI...")
-            task.wait(0.3)
+            
+            -- Create main UI
             createMainUI()
             
             -- Destroy key GUI completely
             keyGui:Destroy()
         else
             statusLabel.Text = "❌ Invalid key. Please try again."
-            statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+            statusLabel.TextColor3 = Color3.new(1, 0.3, 0.3)
             keyInput.Text = ""
         end
     end)
@@ -1105,6 +1116,6 @@ end
 -- ============================================================
 -- START
 -- ============================================================
-print("🔐 HvH Arena v7.0 - Key system active")
+print("🔐 HvH Arena v8.0 - Key system active")
 print("📝 Enter key: UEONTOP")
 createKeySystem()
