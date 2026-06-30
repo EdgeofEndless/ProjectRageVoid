@@ -1,5 +1,5 @@
 --[[
-    HvH ARENA v5.2 - FULLY FIXED
+    HvH ARENA v5.3 - FULLY VISIBLE UI + WORKING TOGGLE
     Key: UEONTOP
 ]]
 
@@ -60,6 +60,7 @@ local rageTimer = nil
 local rapidFireConnection = nil
 local rapidMeleeConnection = nil
 local screenGui = nil
+local mainFrame = nil
 local uiVisible = true
 
 -- UI element references
@@ -86,7 +87,7 @@ local function getPlayers()
 end
 
 -- ============================================================
--- CORE FEATURES (DEFINED FIRST)
+-- CORE FEATURES
 -- ============================================================
 
 -- ESP
@@ -375,7 +376,7 @@ local function createMainUI()
         content.BackgroundTransparency = 1
         content.BorderSizePixel = 0
         content.ScrollBarThickness = 5
-        content.CanvasSize = UDim2.new(0, 0, 0, 800)
+        content.CanvasSize = UDim2.new(0, 0, 0, 1000)
         content.Visible = (i == 1)
         content.Parent = mainFrame
         tabContents[tabName] = content
@@ -393,11 +394,18 @@ local function createMainUI()
         btn.MouseButton1Click:Connect(function() switchTab(name) end)
     end
 
-    -- UI BUILDERS
+    -- ============================================================
+    -- UI BUILDERS (with proper yPos tracking)
+    -- ============================================================
+    local function createYPosTracker(parent)
+        parent.yPos = 5
+        return parent
+    end
+
     local function addHeader(parent, text)
         local h = Instance.new("TextLabel")
         h.Size = UDim2.new(1, -10, 0, 24)
-        h.Position = UDim2.new(0, 5, 0, parent.yPos or 5)
+        h.Position = UDim2.new(0, 5, 0, parent.yPos)
         h.Text = text
         h.TextColor3 = Color3.fromRGB(200, 200, 230)
         h.BackgroundTransparency = 1
@@ -405,14 +413,14 @@ local function createMainUI()
         h.Font = Enum.Font.GothamBold
         h.TextSize = 14
         h.Parent = parent
-        parent.yPos = (parent.yPos or 5) + 28
+        parent.yPos = parent.yPos + 28
         return h
     end
 
     local function addToggle(parent, labelText, defaultState, callback)
         local container = Instance.new("Frame")
         container.Size = UDim2.new(1, -10, 0, 30)
-        container.Position = UDim2.new(0, 5, 0, parent.yPos or 5)
+        container.Position = UDim2.new(0, 5, 0, parent.yPos)
         container.BackgroundTransparency = 1
         container.Parent = parent
 
@@ -445,14 +453,14 @@ local function createMainUI()
             callback(state)
         end)
 
-        parent.yPos = (parent.yPos or 5) + 34
+        parent.yPos = parent.yPos + 34
         return btn, function() return state end
     end
 
     local function addSlider(parent, labelText, minVal, maxVal, defaultVal, callback)
         local container = Instance.new("Frame")
         container.Size = UDim2.new(1, -10, 0, 40)
-        container.Position = UDim2.new(0, 5, 0, parent.yPos or 5)
+        container.Position = UDim2.new(0, 5, 0, parent.yPos)
         container.BackgroundTransparency = 1
         container.Parent = parent
 
@@ -516,14 +524,14 @@ local function createMainUI()
             end
         end)
 
-        parent.yPos = (parent.yPos or 5) + 44
+        parent.yPos = parent.yPos + 44
         return container
     end
 
     local function addDropdown(parent, labelText, options, default, callback)
         local container = Instance.new("Frame")
         container.Size = UDim2.new(1, -10, 0, 32)
-        container.Position = UDim2.new(0, 5, 0, parent.yPos or 5)
+        container.Position = UDim2.new(0, 5, 0, parent.yPos)
         container.BackgroundTransparency = 1
         container.Parent = parent
 
@@ -580,14 +588,14 @@ local function createMainUI()
             list.Visible = not list.Visible
         end)
 
-        parent.yPos = (parent.yPos or 5) + 36
+        parent.yPos = parent.yPos + 36
         return btn, list
     end
 
     local function addTextBox(parent, labelText, placeholder, callback)
         local container = Instance.new("Frame")
         container.Size = UDim2.new(1, -10, 0, 35)
-        container.Position = UDim2.new(0, 5, 0, parent.yPos or 5)
+        container.Position = UDim2.new(0, 5, 0, parent.yPos)
         container.BackgroundTransparency = 1
         container.Parent = parent
 
@@ -616,13 +624,17 @@ local function createMainUI()
             if enter then callback(box.Text) end
         end)
 
-        parent.yPos = (parent.yPos or 5) + 39
+        parent.yPos = parent.yPos + 39
         return box
     end
 
-    -- POPULATE TABS
+    -- ============================================================
+    -- POPULATE ALL TABS
+    -- ============================================================
+    
+    -- MAIN TAB
     local mainContent = tabContents["Main"]
-    mainContent.yPos = 5
+    createYPosTracker(mainContent)
     addHeader(mainContent, "⚙ CONFIGURATION")
     addToggle(mainContent, "ESP", state.esp, function(v) state.esp = v end)
     addToggle(mainContent, "Aimbot", state.aimbot, function(v) state.aimbot = v end)
@@ -632,9 +644,11 @@ local function createMainUI()
     addSlider(mainContent, "FOV", 10, 180, state.aimFOV, function(v) state.aimFOV = v end)
     addSlider(mainContent, "Smoothness", 0, 1, state.aimSmoothness, function(v) state.aimSmoothness = v end)
     addSlider(mainContent, "Range", 100, 1000, state.lockOnRange, function(v) state.lockOnRange = v end)
+    mainContent.CanvasSize = UDim2.new(0, 0, 0, mainContent.yPos + 20)
 
+    -- COMBAT TAB
     local combatContent = tabContents["Combat"]
-    combatContent.yPos = 5
+    createYPosTracker(combatContent)
     addHeader(combatContent, "⚔ COMBAT")
     addToggle(combatContent, "God Mode", state.godMode, function(v) state.godMode = v end)
     addToggle(combatContent, "Invisibility", state.invisibility, function(v) state.invisibility = v end)
@@ -666,17 +680,21 @@ local function createMainUI()
         end
     end)
     addToggle(combatContent, "Respawn", false, function(v) if v then LocalPlayer:LoadCharacter() end end)
+    combatContent.CanvasSize = UDim2.new(0, 0, 0, combatContent.yPos + 20)
 
+    -- MOVEMENT TAB
     local movementContent = tabContents["Movement"]
-    movementContent.yPos = 5
+    createYPosTracker(movementContent)
     addHeader(movementContent, "🚀 FLIGHT")
     addToggle(movementContent, "Fly", state.fly, function(v) state.fly = v end)
     addSlider(movementContent, "Fly Speed", 10, 200, state.flySpeed, function(v) state.flySpeed = v end)
     addHeader(movementContent, "🔄 MOVEMENT")
     addToggle(movementContent, "NoClip", state.noclip, function(v) state.noclip = v end)
+    movementContent.CanvasSize = UDim2.new(0, 0, 0, movementContent.yPos + 20)
 
+    -- VISUALS TAB
     local visualsContent = tabContents["Visuals"]
-    visualsContent.yPos = 5
+    createYPosTracker(visualsContent)
     addHeader(visualsContent, "🎨 ESP SETTINGS")
     addToggle(visualsContent, "ESP Enabled", state.esp, function(v) state.esp = v end)
     addSlider(visualsContent, "ESP Thickness", 1, 5, state.espThickness, function(v) state.espThickness = v end)
@@ -694,7 +712,7 @@ local function createMainUI()
     }
     local colorContainer = Instance.new("Frame")
     colorContainer.Size = UDim2.new(1, -10, 0, 40)
-    colorContainer.Position = UDim2.new(0, 5, 0, visualsContent.yPos or 5)
+    colorContainer.Position = UDim2.new(0, 5, 0, visualsContent.yPos)
     colorContainer.BackgroundTransparency = 1
     colorContainer.Parent = visualsContent
     for i, colorName in ipairs(colorPresets) do
@@ -707,10 +725,12 @@ local function createMainUI()
         btn.Parent = colorContainer
         btn.MouseButton1Click:Connect(function() state.espColor = colorValues[colorName] end)
     end
-    visualsContent.yPos = (visualsContent.yPos or 5) + 44
+    visualsContent.yPos = visualsContent.yPos + 44
+    visualsContent.CanvasSize = UDim2.new(0, 0, 0, visualsContent.yPos + 20)
 
+    -- RAGE TAB
     local rageContent = tabContents["Rage"]
-    rageContent.yPos = 5
+    createYPosTracker(rageContent)
     addHeader(rageContent, "🔥 RAGE FEATURES")
     addToggle(rageContent, "Rage Teleport (Back-and-Forth)", state.rageTeleport, function(v)
         state.rageTeleport = v
@@ -765,12 +785,11 @@ local function createMainUI()
     end)
     addSlider(rageContent, "Rapid Melee Rate (s)", 0.02, 0.5, state.rapidMeleeRate, function(v) state.rapidMeleeRate = v end)
     addTextBox(rageContent, "Melee Key", "Q", function(v) if v and #v == 1 then state.meleeKey = v:upper() end end)
+    rageContent.CanvasSize = UDim2.new(0, 0, 0, rageContent.yPos + 20)
 
-    for name, content in pairs(tabContents) do
-        content.CanvasSize = UDim2.new(0, 0, 0, (content.yPos or 5) + 50)
-    end
-
+    -- ============================================================
     -- UPDATE PLAYER LISTS
+    -- ============================================================
     local function updatePlayerLists()
         local players = getPlayers()
         local names = {"Select Player"}
@@ -856,7 +875,9 @@ local function createMainUI()
         end
     end
 
-    -- LOOPS
+    -- ============================================================
+    -- MAIN LOOPS
+    -- ============================================================
     RunService.RenderStepped:Connect(updateESP)
     RunService.Heartbeat:Connect(updateFlight)
     RunService.Stepped:Connect(function()
@@ -886,14 +907,22 @@ local function createMainUI()
         end
     end)
 
+    -- ============================================================
+    -- RIGHT SHIFT TOGGLE (FIXED)
+    -- ============================================================
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
+        -- Check if the key is RightShift regardless of gameProcessed
         if input.KeyCode == Enum.KeyCode.RightShift then
             uiVisible = not uiVisible
-            if screenGui then screenGui.Enabled = uiVisible end
+            if screenGui then
+                screenGui.Enabled = uiVisible
+            end
         end
     end)
 
+    -- ============================================================
+    -- CLEANUP
+    -- ============================================================
     LocalPlayer.OnTeleport:Connect(function()
         if screenGui then screenGui:Destroy() end
         if bodyVel then bodyVel:Destroy() end
