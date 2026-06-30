@@ -1,5 +1,5 @@
 --[[
-    HvH ARENA v6.0 - SIMPLIFIED UI, ALL CONTENT VISIBLE
+    HvH ARENA v6.1 - FULLY WORKING
     Key: UEONTOP
 ]]
 
@@ -275,7 +275,19 @@ local function startRageTeleport()
 end
 
 -- ============================================================
--- SIMPLIFIED UI CREATION
+-- GLOBAL RIGHT SHIFT TOGGLE (WORKS ALWAYS)
+-- ============================================================
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.RightShift then
+        uiVisible = not uiVisible
+        if screenGui then
+            screenGui.Enabled = uiVisible
+        end
+    end
+end)
+
+-- ============================================================
+-- UI CREATION
 -- ============================================================
 local function createMainUI()
     print("Creating main UI...")
@@ -313,7 +325,7 @@ local function createMainUI()
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Size = UDim2.new(1, -50, 1, 0)
     titleLabel.Position = UDim2.new(0, 12, 0, 0)
-    titleLabel.Text = "◆ HvH Arena v6.0"
+    titleLabel.Text = "◆ HvH Arena v6.1"
     titleLabel.TextColor3 = Color3.fromRGB(230, 230, 255)
     titleLabel.BackgroundTransparency = 1
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -347,7 +359,6 @@ local function createMainUI()
     local tabButtons = {}
     local tabContainers = {}
 
-    -- Create a container Frame inside each ScrollingFrame to hold content
     for i, tabName in ipairs(tabs) do
         local btn = Instance.new("TextButton")
         btn.Size = UDim2.new(0, 84, 1, -2)
@@ -361,7 +372,6 @@ local function createMainUI()
         btn.Parent = tabBar
         tabButtons[tabName] = btn
 
-        -- ScrollingFrame
         local scroll = Instance.new("ScrollingFrame")
         scroll.Size = UDim2.new(1, -10, 1, -80)
         scroll.Position = UDim2.new(0, 5, 0, 78)
@@ -371,9 +381,8 @@ local function createMainUI()
         scroll.Visible = (i == 1)
         scroll.Parent = mainFrame
         
-        -- Container inside scroll to hold all content
         local container = Instance.new("Frame")
-        container.Size = UDim2.new(1, 0, 0, 10) -- Will be resized
+        container.Size = UDim2.new(1, 0, 0, 10)
         container.BackgroundTransparency = 1
         container.Parent = scroll
         
@@ -399,7 +408,7 @@ local function createMainUI()
     end
 
     -- ============================================================
-    -- UI BUILDERS (Simplified)
+    -- UI BUILDERS
     -- ============================================================
     local function addHeader(tabData, text)
         local h = Instance.new("TextLabel")
@@ -638,8 +647,10 @@ local function createMainUI()
     end
 
     -- ============================================================
-    -- POPULATE MAIN TAB
+    -- POPULATE TABS
     -- ============================================================
+    
+    -- MAIN
     local mainData = tabContainers["Main"]
     addHeader(mainData, "⚙ CONFIGURATION")
     addToggle(mainData, "ESP", state.esp, function(v) state.esp = v end)
@@ -651,9 +662,7 @@ local function createMainUI()
     addSlider(mainData, "Smoothness", 0, 1, state.aimSmoothness, function(v) state.aimSmoothness = v end)
     addSlider(mainData, "Range", 100, 1000, state.lockOnRange, function(v) state.lockOnRange = v end)
 
-    -- ============================================================
-    -- POPULATE COMBAT TAB
-    -- ============================================================
+    -- COMBAT
     local combatData = tabContainers["Combat"]
     addHeader(combatData, "⚔ COMBAT")
     addToggle(combatData, "God Mode", state.godMode, function(v) state.godMode = v end)
@@ -687,9 +696,7 @@ local function createMainUI()
     end)
     addToggle(combatData, "Respawn", false, function(v) if v then LocalPlayer:LoadCharacter() end end)
 
-    -- ============================================================
-    -- POPULATE MOVEMENT TAB
-    -- ============================================================
+    -- MOVEMENT
     local movementData = tabContainers["Movement"]
     addHeader(movementData, "🚀 FLIGHT")
     addToggle(movementData, "Fly", state.fly, function(v) state.fly = v end)
@@ -697,9 +704,7 @@ local function createMainUI()
     addHeader(movementData, "🔄 MOVEMENT")
     addToggle(movementData, "NoClip", state.noclip, function(v) state.noclip = v end)
 
-    -- ============================================================
-    -- POPULATE VISUALS TAB
-    -- ============================================================
+    -- VISUALS
     local visualsData = tabContainers["Visuals"]
     addHeader(visualsData, "🎨 ESP SETTINGS")
     addToggle(visualsData, "ESP Enabled", state.esp, function(v) state.esp = v end)
@@ -735,9 +740,7 @@ local function createMainUI()
     visualsData.container.Size = UDim2.new(1, 0, 0, visualsData.yPos + 10)
     visualsData.scroll.CanvasSize = UDim2.new(0, 0, 0, visualsData.yPos + 20)
 
-    -- ============================================================
-    -- POPULATE RAGE TAB
-    -- ============================================================
+    -- RAGE
     local rageData = tabContainers["Rage"]
     addHeader(rageData, "🔥 RAGE FEATURES")
     addToggle(rageData, "Rage Teleport (Back-and-Forth)", state.rageTeleport, function(v)
@@ -914,16 +917,6 @@ local function createMainUI()
         end
     end)
 
-    -- RIGHT SHIFT TOGGLE
-    UserInputService.InputBegan:Connect(function(input)
-        if input.KeyCode == Enum.KeyCode.RightShift then
-            uiVisible = not uiVisible
-            if screenGui then
-                screenGui.Enabled = uiVisible
-            end
-        end
-    end)
-
     LocalPlayer.OnTeleport:Connect(function()
         if screenGui then screenGui:Destroy() end
         if bodyVel then bodyVel:Destroy() end
@@ -933,7 +926,7 @@ local function createMainUI()
         if rapidMeleeConnection then rapidMeleeConnection:Disconnect() end
     end)
 
-    print("✅ HvH Arena v6.0 unlocked and loaded!")
+    print("✅ HvH Arena v6.1 unlocked and loaded!")
     print("🔑 Press RightShift to toggle UI")
 end
 
@@ -1040,15 +1033,18 @@ local function createKeySystem()
         if entered == "UEONTOP" then
             statusLabel.Text = "✅ Key accepted! Loading..."
             statusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
-            keyInput.Text = ""
+            
+            -- Hide key UI elements
             keyInput.Visible = false
             unlockBtn.Visible = false
             title.Text = "✅ Unlocked!"
-            subtitle.Text = "You now have access to HvH Arena v6.0"
+            subtitle.Text = "You now have access to HvH Arena v6.1"
             
             print("Key accepted! Creating main UI...")
             task.wait(0.3)
             createMainUI()
+            
+            -- Destroy the entire key GUI after main UI is created
             keyGui:Destroy()
         else
             statusLabel.Text = "❌ Invalid key. Please try again."
@@ -1063,6 +1059,6 @@ end
 -- ============================================================
 -- START
 -- ============================================================
-print("🔐 HvH Arena v6.0 - Key system active")
+print("🔐 HvH Arena v6.1 - Key system active")
 print("📝 Enter key: UEONTOP")
 createKeySystem()
