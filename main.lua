@@ -1,5 +1,5 @@
 --[[
-    HvH ARENA v5.0 - COMPLETE WITH KEY SYSTEM
+    HvH ARENA v5.1 - FIXED KEY SYSTEM
     Key: UEONTOP
     Features: Aimbot, ESP, Flight, NoClip, God Mode, Invisibility,
     Speed/Jump/Health, Teleport/Kill/Respawn, Rage Teleport,
@@ -70,10 +70,12 @@ local rapidMeleeConnection = nil
 -- UI
 local screenGui = nil
 local mainFrame = nil
-local unlockFrame = nil
 local uiVisible = true
 local currentTab = "Main"
 local isUnlocked = false
+
+-- UI element references for dropdown updates
+local teleportBtn, teleportList, killBtn, killList, rageTargetBtn, rageTargetList
 
 -- ============================================================
 -- HELPERS
@@ -95,161 +97,228 @@ local function getPlayers()
     return list
 end
 
-local function deepCopy(t)
-    local copy = {}
-    for k, v in pairs(t) do
-        if type(v) == "table" then copy[k] = deepCopy(v) else copy[k] = v end
+-- ============================================================
+-- CORE FEATURE IMPLEMENTATIONS (defined BEFORE UI)
+-- ============================================================
+
+-- ESP System
+local function createESP(player)
+    if not player.Character or not player.Character:FindFirstChild("Head") then return end
+    if espObjects[player] then
+        for _, obj in pairs(espObjects[player]) do obj:Remove() end
+        espObjects[player] = nil
     end
-    return copy
+    
+    local drawings = {}
+    drawings.box = Drawing.new("Quad")
+    drawings.box.Thickness = state.espThickness
+    drawings.box.Color = state.espColor
+    drawings.box.Transparency = 0.3
+    drawings.box.Filled = false
+    
+    drawings.name = Drawing.new("Text")
+    drawings.name.Text = player.Name
+    drawings.name.Size = 14
+    drawings.name.Color = state.espColor
+    drawings.name.Center = true
+    drawings.name.Outline = true
+    drawings.name.OutlineColor = Color3.fromRGB(0, 0, 0)
+    
+    drawings.health = Drawing.new("Line")
+    drawings.health.Thickness = 3
+    drawings.health.Color = Color3.fromRGB(0, 255, 0)
+    
+    espObjects[player] = drawings
+    return drawings
 end
 
--- ============================================================
--- KEY SYSTEM UI
--- ============================================================
-local function createKeySystem()
-    local keyGui = Instance.new("ScreenGui")
-    keyGui.Name = "KeySystem"
-    keyGui.ResetOnSpawn = false
-    keyGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    keyGui.Parent = LocalPlayer.PlayerGui
-
-    -- Background overlay
-    local overlay = Instance.new("Frame")
-    overlay.Size = UDim2.new(1, 0, 1, 0)
-    overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    overlay.BackgroundTransparency = 0.6
-    overlay.BorderSizePixel = 0
-    overlay.Parent = keyGui
-
-    -- Key entry frame
-    unlockFrame = Instance.new("Frame")
-    unlockFrame.Size = UDim2.new(0, 380, 0, 220)
-    unlockFrame.Position = UDim2.new(0.5, -190, 0.5, -110)
-    unlockFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
-    unlockFrame.BorderSizePixel = 0
-    unlockFrame.ClipsDescendants = true
-    unlockFrame.Parent = keyGui
-
-    -- Accent line
-    local accent = Instance.new("Frame")
-    accent.Size = UDim2.new(1, 0, 0, 3)
-    accent.BackgroundColor3 = Color3.fromRGB(0, 180, 255)
-    accent.BorderSizePixel = 0
-    accent.Parent = unlockFrame
-
-    -- Title
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -40, 0, 40)
-    title.Position = UDim2.new(0, 20, 0, 15)
-    title.Text = "🔐 Enter License Key"
-    title.TextColor3 = Color3.fromRGB(230, 230, 255)
-    title.BackgroundTransparency = 1
-    title.Font = Enum.Font.GothamBold
-    title.TextSize = 20
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    title.Parent = unlockFrame
-
-    -- Subtitle
-    local subtitle = Instance.new("TextLabel")
-    subtitle.Size = UDim2.new(1, -40, 0, 20)
-    subtitle.Position = UDim2.new(0, 20, 0, 55)
-    subtitle.Text = "Enter the activation key to access HvH Arena"
-    subtitle.TextColor3 = Color3.fromRGB(150, 150, 180)
-    subtitle.BackgroundTransparency = 1
-    subtitle.Font = Enum.Font.Gotham
-    subtitle.TextSize = 13
-    subtitle.TextXAlignment = Enum.TextXAlignment.Left
-    subtitle.Parent = unlockFrame
-
-    -- Key input box
-    local keyInput = Instance.new("TextBox")
-    keyInput.Size = UDim2.new(0.8, 0, 0, 40)
-    keyInput.Position = UDim2.new(0.1, 0, 0, 85)
-    keyInput.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
-    keyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-    keyInput.PlaceholderText = "Enter key..."
-    keyInput.PlaceholderColor3 = Color3.fromRGB(120, 120, 150)
-    keyInput.Font = Enum.Font.Gotham
-    keyInput.TextSize = 16
-    keyInput.BorderSizePixel = 0
-    keyInput.Parent = unlockFrame
-
-    -- Status label
-    local statusLabel = Instance.new("TextLabel")
-    statusLabel.Size = UDim2.new(1, -40, 0, 20)
-    statusLabel.Position = UDim2.new(0, 20, 0, 130)
-    statusLabel.Text = ""
-    statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-    statusLabel.BackgroundTransparency = 1
-    statusLabel.Font = Enum.Font.Gotham
-    statusLabel.TextSize = 13
-    statusLabel.TextXAlignment = Enum.TextXAlignment.Center
-    statusLabel.Parent = unlockFrame
-
-    -- Unlock button
-    local unlockBtn = Instance.new("TextButton")
-    unlockBtn.Size = UDim2.new(0.4, 0, 0, 38)
-    unlockBtn.Position = UDim2.new(0.3, 0, 0, 158)
-    unlockBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 255)
-    unlockBtn.Text = "UNLOCK"
-    unlockBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    unlockBtn.Font = Enum.Font.GothamBold
-    unlockBtn.TextSize = 16
-    unlockBtn.BorderSizePixel = 0
-    unlockBtn.Parent = unlockFrame
-
-    -- Hover effect
-    unlockBtn.MouseEnter:Connect(function()
-        TweenService:Create(unlockBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(0, 200, 255)}):Play()
-    end)
-    unlockBtn.MouseLeave:Connect(function()
-        TweenService:Create(unlockBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(0, 180, 255)}):Play()
-    end)
-
-    -- Enter key support
-    keyInput.FocusLost:Connect(function(enterPressed)
-        if enterPressed then
-            unlockBtn.MouseButton1Click:Fire()
+local function updateESP()
+    if not state.esp then
+        for _, drawings in pairs(espObjects) do
+            for _, d in pairs(drawings) do d.Visible = false end
         end
-    end)
-
-    -- Unlock logic
-    unlockBtn.MouseButton1Click:Connect(function()
-        local entered = keyInput.Text:upper()
-        if entered == "UEONTOP" then
-            isUnlocked = true
-            statusLabel.Text = "✅ Key accepted! Loading..."
-            statusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
-            keyInput.Text = ""
-            keyInput.Visible = false
-            unlockBtn.Visible = false
-            title.Text = "✅ Unlocked!"
-            subtitle.Text = "You now have access to HvH Arena v4.0"
-            
-            -- Wait a moment then create main UI and destroy key UI
-            task.wait(0.5)
-            createMainUI()
-            keyGui:Destroy()
+        return
+    end
+    
+    for player, drawings in pairs(espObjects) do
+        if player.Character and player.Character:FindFirstChild("Head") and isAlive(player.Character) then
+            local head = player.Character.Head
+            local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
+            if onScreen then
+                local size = 60
+                drawings.box.PointA = Vector2.new(pos.X - size/2, pos.Y - size)
+                drawings.box.PointB = Vector2.new(pos.X + size/2, pos.Y - size)
+                drawings.box.PointC = Vector2.new(pos.X + size/2, pos.Y + size/2)
+                drawings.box.PointD = Vector2.new(pos.X - size/2, pos.Y + size/2)
+                drawings.box.Visible = true
+                
+                drawings.name.Position = Vector2.new(pos.X, pos.Y - size - 20)
+                drawings.name.Visible = true
+                
+                local humanoid = player.Character:FindFirstChild("Humanoid")
+                if humanoid then
+                    local healthPercent = humanoid.Health / humanoid.MaxHealth
+                    drawings.health.From = Vector2.new(pos.X - size/2, pos.Y + size/2 + 5)
+                    drawings.health.To = Vector2.new(pos.X - size/2 + size * healthPercent, pos.Y + size/2 + 5)
+                    drawings.health.Color = healthPercent > 0.5 and Color3.fromRGB(0, 255, 0) or 
+                                             healthPercent > 0.25 and Color3.fromRGB(255, 255, 0) or 
+                                             Color3.fromRGB(255, 0, 0)
+                    drawings.health.Visible = true
+                end
+            else
+                drawings.box.Visible = false
+                drawings.name.Visible = false
+                drawings.health.Visible = false
+            end
         else
-            statusLabel.Text = "❌ Invalid key. Please try again."
-            statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
-            keyInput.Text = ""
-            -- Shake animation
-            TweenService:Create(unlockFrame, TweenInfo.new(0.1, Enum.EasingStyle.Linear), {
-                Position = UDim2.new(0.5, -185, 0.5, -110)
-            }):Play()
-            task.wait(0.1)
-            TweenService:Create(unlockFrame, TweenInfo.new(0.1, Enum.EasingStyle.Linear), {
-                Position = UDim2.new(0.5, -195, 0.5, -110)
-            }):Play()
-            task.wait(0.1)
-            TweenService:Create(unlockFrame, TweenInfo.new(0.1, Enum.EasingStyle.Linear), {
-                Position = UDim2.new(0.5, -190, 0.5, -110)
-            }):Play()
+            for _, d in pairs(drawings) do d.Visible = false end
         end
-    end)
+    end
+end
 
-    return keyGui
+-- Aimbot
+local function findTarget()
+    local closest = nil
+    local closestAngle = state.aimFOV
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") and isAlive(player.Character) then
+            local head = player.Character.Head
+            local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
+            if onScreen then
+                local dist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+                local angle = dist / Camera.ViewportSize.X * 180
+                if angle < closestAngle then
+                    closestAngle = angle
+                    closest = player
+                end
+            end
+        end
+    end
+    return closest
+end
+
+-- Flight
+local function updateFlight()
+    if state.fly then
+        if not bodyVel then
+            getChar()
+            if rootPart then
+                bodyVel = Instance.new("BodyVelocity")
+                bodyVel.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+                bodyVel.Parent = rootPart
+            end
+        end
+        if bodyVel then
+            local direction = Vector3.new(0, 0, 0)
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then direction = direction + Camera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then direction = direction - Camera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then direction = direction - Camera.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then direction = direction + Camera.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then direction = direction + Vector3.new(0, 1, 0) end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then direction = direction - Vector3.new(0, 1, 0) end
+            
+            if direction.Magnitude > 0 then
+                bodyVel.Velocity = direction.Unit * state.flySpeed
+            else
+                bodyVel.Velocity = Vector3.new(0, 0, 0)
+            end
+        end
+    else
+        if bodyVel then bodyVel:Destroy(); bodyVel = nil end
+    end
+end
+
+-- NoClip
+local function updateNoClip()
+    if state.noclip then
+        if not noclipConnection then
+            noclipConnection = RunService.Stepped:Connect(function()
+                getChar()
+                if playerChar then
+                    for _, part in pairs(playerChar:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.CanCollide = false
+                        end
+                    end
+                end
+            end)
+        end
+    else
+        if noclipConnection then noclipConnection:Disconnect(); noclipConnection = nil end
+        getChar()
+        if playerChar then
+            for _, part in pairs(playerChar:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+            end
+        end
+    end
+end
+
+-- God Mode
+local function updateGodMode()
+    getChar()
+    if humanoid then
+        if state.godMode then
+            humanoid.MaxHealth = math.huge
+            humanoid.Health = math.huge
+        else
+            humanoid.MaxHealth = 100
+            humanoid.Health = 100
+        end
+    end
+end
+
+-- Invisibility
+local function updateInvisibility()
+    getChar()
+    if playerChar then
+        for _, part in pairs(playerChar:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.Transparency = state.invisibility and 1 or 0
+                part.CastShadow = not state.invisibility
+            end
+        end
+    end
+end
+
+-- Rage Teleport (Back-and-Forth)
+local function startRageTeleport()
+    if rageTimer then rageTimer:Disconnect(); rageTimer = nil end
+    if not state.rageTeleport or not rageTarget or not rageTarget.Character then return end
+    
+    getChar()
+    if not rootPart then return end
+    
+    local targetRoot = rageTarget.Character:FindFirstChild("HumanoidRootPart")
+    if not targetRoot then return end
+    
+    rageOriginalPos = rootPart.Position
+    local toggle = false
+    
+    rageTimer = RunService.Heartbeat:Connect(function()
+        if not state.rageTeleport or not rageTarget or not rageTarget.Character then
+            rageTimer:Disconnect()
+            rageTimer = nil
+            return
+        end
+        
+        getChar()
+        if not rootPart then return end
+        
+        local newTargetRoot = rageTarget.Character:FindFirstChild("HumanoidRootPart")
+        if not newTargetRoot then return end
+        
+        if toggle then
+            rootPart.CFrame = CFrame.new(rageOriginalPos)
+        else
+            rootPart.CFrame = newTargetRoot.CFrame + Vector3.new(0, 3, 0)
+        end
+        toggle = not toggle
+    end)
 end
 
 -- ============================================================
@@ -262,7 +331,7 @@ local function createMainUI()
     screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     screenGui.Parent = LocalPlayer.PlayerGui
 
-    -- Main Frame - Glassmorphism style
+    -- Main Frame
     mainFrame = Instance.new("Frame")
     mainFrame.Size = UDim2.new(0, 420, 0, 580)
     mainFrame.Position = UDim2.new(0.5, -210, 0.5, -290)
@@ -280,7 +349,6 @@ local function createMainUI()
     titleBar.BorderSizePixel = 0
     titleBar.Parent = mainFrame
 
-    -- Accent line
     local accentLine = Instance.new("Frame")
     accentLine.Size = UDim2.new(1, 0, 0, 2)
     accentLine.Position = UDim2.new(0, 0, 1, -2)
@@ -339,7 +407,6 @@ local function createMainUI()
         btn.Parent = tabBar
         tabButtons[tabName] = btn
 
-        -- Content container
         local content = Instance.new("ScrollingFrame")
         content.Size = UDim2.new(1, -10, 1, -80)
         content.Position = UDim2.new(0, 5, 0, 78)
@@ -514,26 +581,26 @@ local function createMainUI()
         lbl.TextSize = 13
         lbl.Parent = container
 
-        local dropdownBtn = Instance.new("TextButton")
-        dropdownBtn.Size = UDim2.new(0.4, 0, 0.8, 0)
-        dropdownBtn.Position = UDim2.new(0.55, 0, 0.1, 0)
-        dropdownBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-        dropdownBtn.Text = default
-        dropdownBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        dropdownBtn.Font = Enum.Font.Gotham
-        dropdownBtn.TextSize = 12
-        dropdownBtn.BorderSizePixel = 0
-        dropdownBtn.Parent = container
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0.4, 0, 0.8, 0)
+        btn.Position = UDim2.new(0.55, 0, 0.1, 0)
+        btn.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+        btn.Text = default
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.Font = Enum.Font.Gotham
+        btn.TextSize = 12
+        btn.BorderSizePixel = 0
+        btn.Parent = container
 
         local selected = default
-        local dropdownList = Instance.new("Frame")
-        dropdownList.Size = UDim2.new(0.4, 0, 0, #options * 26)
-        dropdownList.Position = UDim2.new(0.55, 0, 1, 0)
-        dropdownList.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
-        dropdownList.BorderSizePixel = 0
-        dropdownList.Visible = false
-        dropdownList.ZIndex = 10
-        dropdownList.Parent = container
+        local list = Instance.new("Frame")
+        list.Size = UDim2.new(0.4, 0, 0, #options * 26)
+        list.Position = UDim2.new(0.55, 0, 1, 0)
+        list.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+        list.BorderSizePixel = 0
+        list.Visible = false
+        list.ZIndex = 10
+        list.Parent = container
 
         for _, opt in ipairs(options) do
             local optBtn = Instance.new("TextButton")
@@ -544,21 +611,21 @@ local function createMainUI()
             optBtn.Font = Enum.Font.Gotham
             optBtn.TextSize = 12
             optBtn.BorderSizePixel = 0
-            optBtn.Parent = dropdownList
+            optBtn.Parent = list
             optBtn.MouseButton1Click:Connect(function()
                 selected = opt
-                dropdownBtn.Text = opt
-                dropdownList.Visible = false
+                btn.Text = opt
+                list.Visible = false
                 callback(opt)
             end)
         end
 
-        dropdownBtn.MouseButton1Click:Connect(function()
-            dropdownList.Visible = not dropdownList.Visible
+        btn.MouseButton1Click:Connect(function()
+            list.Visible = not list.Visible
         end)
 
         parent.yPos = (parent.yPos or 5) + 36
-        return dropdownBtn, dropdownList
+        return btn, list
     end
 
     local function addTextBox(parent, labelText, placeholder, callback)
@@ -642,8 +709,7 @@ local function createMainUI()
     
     addHeader(combatContent, "👥 PLAYER ACTIONS")
     
-    -- Teleport dropdown
-    local teleportBtn, teleportList = addDropdown(combatContent, "Teleport to", {"Select Player"}, "Select Player", function(v)
+    teleportBtn, teleportList = addDropdown(combatContent, "Teleport to", {"Select Player"}, "Select Player", function(v)
         local target = Players:FindFirstChild(v)
         if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
             getChar()
@@ -653,8 +719,7 @@ local function createMainUI()
         end
     end)
     
-    -- Kill dropdown
-    local killBtn, killList = addDropdown(combatContent, "Kill Player", {"Select Player"}, "Select Player", function(v)
+    killBtn, killList = addDropdown(combatContent, "Kill Player", {"Select Player"}, "Select Player", function(v)
         local target = Players:FindFirstChild(v)
         if target and target.Character and target.Character:FindFirstChild("Humanoid") then
             target.Character.Humanoid.Health = 0
@@ -687,7 +752,6 @@ local function createMainUI()
     addSlider(visualsContent, "ESP Thickness", 1, 5, state.espThickness, function(v) state.espThickness = v end)
     
     addHeader(visualsContent, "🎯 ESP COLOR")
-    -- Simple color presets
     local colorPresets = {"Red", "Green", "Blue", "Yellow", "Purple", "Orange", "Cyan", "White"}
     local colorValues = {
         Red = Color3.fromRGB(255, 0, 0),
@@ -716,7 +780,6 @@ local function createMainUI()
         btn.Parent = colorContainer
         btn.MouseButton1Click:Connect(function()
             state.espColor = colorValues[colorName]
-            -- Update all ESP
         end)
     end
     visualsContent.yPos = (visualsContent.yPos or 5) + 44
@@ -733,12 +796,20 @@ local function createMainUI()
             if rageTimer then rageTimer:Disconnect(); rageTimer = nil end
             rageTarget = nil
             rageOriginalPos = nil
+        elseif rageTarget then
+            startRageTeleport()
         end
     end)
     
-    -- Target selection for rage teleport
-    local rageTargetBtn, rageTargetList = addDropdown(rageContent, "Rage Target", {"Select Player"}, "Select Player", function(v)
-        rageTarget = Players:FindFirstChild(v)
+    rageTargetBtn, rageTargetList = addDropdown(rageContent, "Rage Target", {"Select Player"}, "Select Player", function(v)
+        if v ~= "Select Player" then
+            rageTarget = Players:FindFirstChild(v)
+            if state.rageTeleport and rageTarget then
+                startRageTeleport()
+            end
+        else
+            rageTarget = nil
+        end
     end)
     
     addHeader(rageContent, "⚡ RAPID FIRE")
@@ -788,235 +859,8 @@ local function createMainUI()
     end
 
     -- ============================================================
-    -- CORE FEATURE IMPLEMENTATIONS
+    -- UPDATE PLAYER LISTS FUNCTION
     -- ============================================================
-    
-    -- ESP System
-    local function createESP(player)
-        if not player.Character or not player.Character:FindFirstChild("Head") then return end
-        if espObjects[player] then
-            for _, obj in pairs(espObjects[player]) do obj:Remove() end
-            espObjects[player] = nil
-        end
-        
-        local drawings = {}
-        drawings.box = Drawing.new("Quad")
-        drawings.box.Thickness = state.espThickness
-        drawings.box.Color = state.espColor
-        drawings.box.Transparency = 0.3
-        drawings.box.Filled = false
-        
-        drawings.name = Drawing.new("Text")
-        drawings.name.Text = player.Name
-        drawings.name.Size = 14
-        drawings.name.Color = state.espColor
-        drawings.name.Center = true
-        drawings.name.Outline = true
-        drawings.name.OutlineColor = Color3.fromRGB(0, 0, 0)
-        
-        drawings.health = Drawing.new("Line")
-        drawings.health.Thickness = 3
-        drawings.health.Color = Color3.fromRGB(0, 255, 0)
-        
-        espObjects[player] = drawings
-        return drawings
-    end
-    
-    local function updateESP()
-        if not state.esp then
-            for _, drawings in pairs(espObjects) do
-                for _, d in pairs(drawings) do d.Visible = false end
-            end
-            return
-        end
-        
-        for player, drawings in pairs(espObjects) do
-            if player.Character and player.Character:FindFirstChild("Head") and isAlive(player.Character) then
-                local head = player.Character.Head
-                local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
-                if onScreen then
-                    local size = 60
-                    drawings.box.PointA = Vector2.new(pos.X - size/2, pos.Y - size)
-                    drawings.box.PointB = Vector2.new(pos.X + size/2, pos.Y - size)
-                    drawings.box.PointC = Vector2.new(pos.X + size/2, pos.Y + size/2)
-                    drawings.box.PointD = Vector2.new(pos.X - size/2, pos.Y + size/2)
-                    drawings.box.Visible = true
-                    
-                    drawings.name.Position = Vector2.new(pos.X, pos.Y - size - 20)
-                    drawings.name.Visible = true
-                    
-                    -- Health bar
-                    local humanoid = player.Character:FindFirstChild("Humanoid")
-                    if humanoid then
-                        local healthPercent = humanoid.Health / humanoid.MaxHealth
-                        drawings.health.From = Vector2.new(pos.X - size/2, pos.Y + size/2 + 5)
-                        drawings.health.To = Vector2.new(pos.X - size/2 + size * healthPercent, pos.Y + size/2 + 5)
-                        drawings.health.Color = healthPercent > 0.5 and Color3.fromRGB(0, 255, 0) or 
-                                                 healthPercent > 0.25 and Color3.fromRGB(255, 255, 0) or 
-                                                 Color3.fromRGB(255, 0, 0)
-                        drawings.health.Visible = true
-                    end
-                else
-                    drawings.box.Visible = false
-                    drawings.name.Visible = false
-                    drawings.health.Visible = false
-                end
-            else
-                for _, d in pairs(drawings) do d.Visible = false end
-            end
-        end
-    end
-    
-    -- Aimbot
-    local function findTarget()
-        local closest = nil
-        local closestAngle = state.aimFOV
-        local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-        
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") and isAlive(player.Character) then
-                local head = player.Character.Head
-                local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
-                if onScreen then
-                    local dist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
-                    local angle = dist / Camera.ViewportSize.X * 180
-                    if angle < closestAngle then
-                        closestAngle = angle
-                        closest = player
-                    end
-                end
-            end
-        end
-        return closest
-    end
-    
-    -- Flight
-    local function updateFlight()
-        if state.fly then
-            if not bodyVel then
-                getChar()
-                if rootPart then
-                    bodyVel = Instance.new("BodyVelocity")
-                    bodyVel.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-                    bodyVel.Parent = rootPart
-                end
-            end
-            if bodyVel then
-                local direction = Vector3.new(0, 0, 0)
-                if UserInputService:IsKeyDown(Enum.KeyCode.W) then direction = direction + Camera.CFrame.LookVector end
-                if UserInputService:IsKeyDown(Enum.KeyCode.S) then direction = direction - Camera.CFrame.LookVector end
-                if UserInputService:IsKeyDown(Enum.KeyCode.A) then direction = direction - Camera.CFrame.RightVector end
-                if UserInputService:IsKeyDown(Enum.KeyCode.D) then direction = direction + Camera.CFrame.RightVector end
-                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then direction = direction + Vector3.new(0, 1, 0) end
-                if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then direction = direction - Vector3.new(0, 1, 0) end
-                
-                if direction.Magnitude > 0 then
-                    bodyVel.Velocity = direction.Unit * state.flySpeed
-                else
-                    bodyVel.Velocity = Vector3.new(0, 0, 0)
-                end
-            end
-        else
-            if bodyVel then bodyVel:Destroy(); bodyVel = nil end
-        end
-    end
-    
-    -- NoClip
-    local function updateNoClip()
-        if state.noclip then
-            if not noclipConnection then
-                noclipConnection = RunService.Stepped:Connect(function()
-                    getChar()
-                    if playerChar then
-                        for _, part in pairs(playerChar:GetDescendants()) do
-                            if part:IsA("BasePart") then
-                                part.CanCollide = false
-                            end
-                        end
-                    end
-                end)
-            end
-        else
-            if noclipConnection then noclipConnection:Disconnect(); noclipConnection = nil end
-            getChar()
-            if playerChar then
-                for _, part in pairs(playerChar:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.CanCollide = true
-                    end
-                end
-            end
-        end
-    end
-    
-    -- God Mode
-    local function updateGodMode()
-        getChar()
-        if humanoid then
-            if state.godMode then
-                humanoid.MaxHealth = math.huge
-                humanoid.Health = math.huge
-            else
-                humanoid.MaxHealth = 100
-                humanoid.Health = 100
-            end
-        end
-    end
-    
-    -- Invisibility
-    local function updateInvisibility()
-        getChar()
-        if playerChar then
-            for _, part in pairs(playerChar:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.Transparency = state.invisibility and 1 or 0
-                    part.CastShadow = not state.invisibility
-                end
-            end
-        end
-    end
-
-    -- Rage Teleport (Back-and-Forth)
-    local function startRageTeleport()
-        if rageTimer then rageTimer:Disconnect(); rageTimer = nil end
-        if not state.rageTeleport or not rageTarget or not rageTarget.Character then return end
-        
-        getChar()
-        if not rootPart then return end
-        
-        local targetRoot = rageTarget.Character:FindFirstChild("HumanoidRootPart")
-        if not targetRoot then return end
-        
-        rageOriginalPos = rootPart.Position
-        local toggle = false
-        
-        rageTimer = RunService.Heartbeat:Connect(function()
-            if not state.rageTeleport or not rageTarget or not rageTarget.Character then
-                rageTimer:Disconnect()
-                rageTimer = nil
-                return
-            end
-            
-            getChar()
-            if not rootPart then return end
-            
-            local newTargetRoot = rageTarget.Character:FindFirstChild("HumanoidRootPart")
-            if not newTargetRoot then return end
-            
-            if toggle then
-                rootPart.CFrame = CFrame.new(rageOriginalPos)
-            else
-                rootPart.CFrame = newTargetRoot.CFrame + Vector3.new(0, 3, 0)
-            end
-            toggle = not toggle
-        end)
-    end
-
-    -- ============================================================
-    -- PLAYER MANAGEMENT
-    -- ============================================================
-    
-    -- Update dropdowns with player list
     local function updatePlayerLists()
         local players = getPlayers()
         local names = {"Select Player"}
@@ -1025,83 +869,89 @@ local function createMainUI()
         end
         
         -- Update teleport dropdown
-        for _, child in pairs(teleportList:GetChildren()) do child:Destroy() end
-        teleportList.Size = UDim2.new(0.4, 0, 0, #names * 26)
-        for _, name in pairs(names) do
-            local btn = Instance.new("TextButton")
-            btn.Size = UDim2.new(1, 0, 0, 26)
-            btn.BackgroundColor3 = Color3.fromRGB(45, 45, 58)
-            btn.Text = name
-            btn.TextColor3 = Color3.fromRGB(220, 220, 250)
-            btn.Font = Enum.Font.Gotham
-            btn.TextSize = 12
-            btn.BorderSizePixel = 0
-            btn.Parent = teleportList
-            btn.MouseButton1Click:Connect(function()
-                teleportBtn.Text = name
-                teleportList.Visible = false
-                if name ~= "Select Player" then
-                    local target = Players:FindFirstChild(name)
-                    if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
-                        getChar()
-                        if rootPart then
-                            rootPart.CFrame = target.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
+        if teleportList then
+            for _, child in pairs(teleportList:GetChildren()) do child:Destroy() end
+            teleportList.Size = UDim2.new(0.4, 0, 0, #names * 26)
+            for _, name in pairs(names) do
+                local btn = Instance.new("TextButton")
+                btn.Size = UDim2.new(1, 0, 0, 26)
+                btn.BackgroundColor3 = Color3.fromRGB(45, 45, 58)
+                btn.Text = name
+                btn.TextColor3 = Color3.fromRGB(220, 220, 250)
+                btn.Font = Enum.Font.Gotham
+                btn.TextSize = 12
+                btn.BorderSizePixel = 0
+                btn.Parent = teleportList
+                btn.MouseButton1Click:Connect(function()
+                    teleportBtn.Text = name
+                    teleportList.Visible = false
+                    if name ~= "Select Player" then
+                        local target = Players:FindFirstChild(name)
+                        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                            getChar()
+                            if rootPart then
+                                rootPart.CFrame = target.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
+                            end
                         end
                     end
-                end
-            end)
+                end)
+            end
         end
         
         -- Update kill dropdown
-        for _, child in pairs(killList:GetChildren()) do child:Destroy() end
-        killList.Size = UDim2.new(0.4, 0, 0, #names * 26)
-        for _, name in pairs(names) do
-            local btn = Instance.new("TextButton")
-            btn.Size = UDim2.new(1, 0, 0, 26)
-            btn.BackgroundColor3 = Color3.fromRGB(45, 45, 58)
-            btn.Text = name
-            btn.TextColor3 = Color3.fromRGB(220, 220, 250)
-            btn.Font = Enum.Font.Gotham
-            btn.TextSize = 12
-            btn.BorderSizePixel = 0
-            btn.Parent = killList
-            btn.MouseButton1Click:Connect(function()
-                killBtn.Text = name
-                killList.Visible = false
-                if name ~= "Select Player" then
-                    local target = Players:FindFirstChild(name)
-                    if target and target.Character and target.Character:FindFirstChild("Humanoid") then
-                        target.Character.Humanoid.Health = 0
+        if killList then
+            for _, child in pairs(killList:GetChildren()) do child:Destroy() end
+            killList.Size = UDim2.new(0.4, 0, 0, #names * 26)
+            for _, name in pairs(names) do
+                local btn = Instance.new("TextButton")
+                btn.Size = UDim2.new(1, 0, 0, 26)
+                btn.BackgroundColor3 = Color3.fromRGB(45, 45, 58)
+                btn.Text = name
+                btn.TextColor3 = Color3.fromRGB(220, 220, 250)
+                btn.Font = Enum.Font.Gotham
+                btn.TextSize = 12
+                btn.BorderSizePixel = 0
+                btn.Parent = killList
+                btn.MouseButton1Click:Connect(function()
+                    killBtn.Text = name
+                    killList.Visible = false
+                    if name ~= "Select Player" then
+                        local target = Players:FindFirstChild(name)
+                        if target and target.Character and target.Character:FindFirstChild("Humanoid") then
+                            target.Character.Humanoid.Health = 0
+                        end
                     end
-                end
-            end)
+                end)
+            end
         end
         
         -- Update rage target dropdown
-        for _, child in pairs(rageTargetList:GetChildren()) do child:Destroy() end
-        rageTargetList.Size = UDim2.new(0.4, 0, 0, #names * 26)
-        for _, name in pairs(names) do
-            local btn = Instance.new("TextButton")
-            btn.Size = UDim2.new(1, 0, 0, 26)
-            btn.BackgroundColor3 = Color3.fromRGB(45, 45, 58)
-            btn.Text = name
-            btn.TextColor3 = Color3.fromRGB(220, 220, 250)
-            btn.Font = Enum.Font.Gotham
-            btn.TextSize = 12
-            btn.BorderSizePixel = 0
-            btn.Parent = rageTargetList
-            btn.MouseButton1Click:Connect(function()
-                rageTargetBtn.Text = name
-                rageTargetList.Visible = false
-                if name ~= "Select Player" then
-                    rageTarget = Players:FindFirstChild(name)
-                    if state.rageTeleport then
-                        startRageTeleport()
+        if rageTargetList then
+            for _, child in pairs(rageTargetList:GetChildren()) do child:Destroy() end
+            rageTargetList.Size = UDim2.new(0.4, 0, 0, #names * 26)
+            for _, name in pairs(names) do
+                local btn = Instance.new("TextButton")
+                btn.Size = UDim2.new(1, 0, 0, 26)
+                btn.BackgroundColor3 = Color3.fromRGB(45, 45, 58)
+                btn.Text = name
+                btn.TextColor3 = Color3.fromRGB(220, 220, 250)
+                btn.Font = Enum.Font.Gotham
+                btn.TextSize = 12
+                btn.BorderSizePixel = 0
+                btn.Parent = rageTargetList
+                btn.MouseButton1Click:Connect(function()
+                    rageTargetBtn.Text = name
+                    rageTargetList.Visible = false
+                    if name ~= "Select Player" then
+                        rageTarget = Players:FindFirstChild(name)
+                        if state.rageTeleport and rageTarget then
+                            startRageTeleport()
+                        end
+                    else
+                        rageTarget = nil
                     end
-                else
-                    rageTarget = nil
-                end
-            end)
+                end)
+            end
         end
     end
 
@@ -1144,11 +994,9 @@ local function createMainUI()
                 local head = target.Character.Head
                 local targetPos = head.Position
                 if state.silentAim then
-                    -- Silent aim: modify CFrame without moving camera
                     local newCF = CFrame.lookAt(Camera.CFrame.Position, targetPos)
                     Camera.CFrame = Camera.CFrame:Lerp(newCF, 1 - state.aimSmoothness)
                 else
-                    -- Visible aim
                     Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, targetPos)
                 end
             end
@@ -1182,6 +1030,143 @@ local function createMainUI()
 
     print("✅ HvH Arena v4.0 unlocked and loaded!")
     print("🔑 Press RightShift to toggle UI")
+end
+
+-- ============================================================
+-- KEY SYSTEM UI
+-- ============================================================
+local function createKeySystem()
+    local keyGui = Instance.new("ScreenGui")
+    keyGui.Name = "KeySystem"
+    keyGui.ResetOnSpawn = false
+    keyGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    keyGui.Parent = LocalPlayer.PlayerGui
+
+    -- Background overlay
+    local overlay = Instance.new("Frame")
+    overlay.Size = UDim2.new(1, 0, 1, 0)
+    overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    overlay.BackgroundTransparency = 0.6
+    overlay.BorderSizePixel = 0
+    overlay.Parent = keyGui
+
+    -- Key entry frame
+    local unlockFrame = Instance.new("Frame")
+    unlockFrame.Size = UDim2.new(0, 380, 0, 220)
+    unlockFrame.Position = UDim2.new(0.5, -190, 0.5, -110)
+    unlockFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+    unlockFrame.BorderSizePixel = 0
+    unlockFrame.ClipsDescendants = true
+    unlockFrame.Parent = keyGui
+
+    -- Accent line
+    local accent = Instance.new("Frame")
+    accent.Size = UDim2.new(1, 0, 0, 3)
+    accent.BackgroundColor3 = Color3.fromRGB(0, 180, 255)
+    accent.BorderSizePixel = 0
+    accent.Parent = unlockFrame
+
+    -- Title
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -40, 0, 40)
+    title.Position = UDim2.new(0, 20, 0, 15)
+    title.Text = "🔐 Enter License Key"
+    title.TextColor3 = Color3.fromRGB(230, 230, 255)
+    title.BackgroundTransparency = 1
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 20
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = unlockFrame
+
+    -- Subtitle
+    local subtitle = Instance.new("TextLabel")
+    subtitle.Size = UDim2.new(1, -40, 0, 20)
+    subtitle.Position = UDim2.new(0, 20, 0, 55)
+    subtitle.Text = "Enter the activation key to access HvH Arena"
+    subtitle.TextColor3 = Color3.fromRGB(150, 150, 180)
+    subtitle.BackgroundTransparency = 1
+    subtitle.Font = Enum.Font.Gotham
+    subtitle.TextSize = 13
+    subtitle.TextXAlignment = Enum.TextXAlignment.Left
+    subtitle.Parent = unlockFrame
+
+    -- Key input box
+    local keyInput = Instance.new("TextBox")
+    keyInput.Size = UDim2.new(0.8, 0, 0, 40)
+    keyInput.Position = UDim2.new(0.1, 0, 0, 85)
+    keyInput.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+    keyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+    keyInput.PlaceholderText = "Enter key..."
+    keyInput.PlaceholderColor3 = Color3.fromRGB(120, 120, 150)
+    keyInput.Font = Enum.Font.Gotham
+    keyInput.TextSize = 16
+    keyInput.BorderSizePixel = 0
+    keyInput.Parent = unlockFrame
+
+    -- Status label
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(1, -40, 0, 20)
+    statusLabel.Position = UDim2.new(0, 20, 0, 130)
+    statusLabel.Text = ""
+    statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Font = Enum.Font.Gotham
+    statusLabel.TextSize = 13
+    statusLabel.TextXAlignment = Enum.TextXAlignment.Center
+    statusLabel.Parent = unlockFrame
+
+    -- Unlock button
+    local unlockBtn = Instance.new("TextButton")
+    unlockBtn.Size = UDim2.new(0.4, 0, 0, 38)
+    unlockBtn.Position = UDim2.new(0.3, 0, 0, 158)
+    unlockBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 255)
+    unlockBtn.Text = "UNLOCK"
+    unlockBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    unlockBtn.Font = Enum.Font.GothamBold
+    unlockBtn.TextSize = 16
+    unlockBtn.BorderSizePixel = 0
+    unlockBtn.Parent = unlockFrame
+
+    -- Hover effect
+    unlockBtn.MouseEnter:Connect(function()
+        TweenService:Create(unlockBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(0, 200, 255)}):Play()
+    end)
+    unlockBtn.MouseLeave:Connect(function()
+        TweenService:Create(unlockBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(0, 180, 255)}):Play()
+    end)
+
+    -- Enter key support
+    keyInput.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            unlockBtn.MouseButton1Click:Fire()
+        end
+    end)
+
+    -- Unlock logic
+    unlockBtn.MouseButton1Click:Connect(function()
+        local entered = keyInput.Text:upper()
+        if entered == "UEONTOP" then
+            isUnlocked = true
+            statusLabel.Text = "✅ Key accepted! Loading..."
+            statusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
+            keyInput.Text = ""
+            keyInput.Visible = false
+            unlockBtn.Visible = false
+            title.Text = "✅ Unlocked!"
+            subtitle.Text = "You now have access to HvH Arena v4.0"
+            
+            -- Create main UI and destroy key GUI
+            task.wait(0.5)
+            createMainUI()
+            keyGui:Destroy()
+        else
+            statusLabel.Text = "❌ Invalid key. Please try again."
+            statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+            keyInput.Text = ""
+        end
+    end)
+
+    return keyGui
 end
 
 -- ============================================================
